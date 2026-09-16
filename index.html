@@ -525,7 +525,7 @@
         if(dau && o.n2===dau) tags.push("đầu");
         if(duoi && o.n2===duoi) tags.push("đuôi");
         var kq="Trượt";
-        if(tags.length){ hit=true; hitCount++; winRows.push(i); kq="TRÚNG ("+tags.join(", ")+")"; }
+        if(tags.length){ hit=true; hitCount++; winRows.push({i:i, dau:(dau&&o.n2===dau), duoi:(duoi&&o.n2===duoi)}); kq="TRÚNG ("+tags.join(", ")+")"; }
         rowsHtml+=rowHtml(i,o,hit,kq);
       });
     } else {
@@ -535,7 +535,7 @@
       noteHtml=esc("Đã lấy 2 số cuối của "+pool.length+" giải để dò lô.");
       nums.forEach(function(o,i){
         var cnt=0; for(var k=0;k<pool.length;k++){ if(pool[k]===o.n2) cnt++; }
-        var hit=cnt>0; if(hit){ hitCount++; winRows.push(i); }
+        var hit=cnt>0; if(hit){ hitCount++; winRows.push({i:i}); }
         var kq= hit ? ("TRÚNG × "+cnt) : "Trượt";
         rowsHtml+=rowHtml(i,o,hit,kq);
       });
@@ -550,9 +550,15 @@
     // Tô đỏ số trúng ngay trên BẢNG CHÍNH
     Array.prototype.forEach.call(document.querySelectorAll("#tbl .cellwin"),function(el){ el.classList.remove("cellwin"); });
     Array.prototype.forEach.call(document.querySelectorAll("#tbl td.tdwin"),function(el){ el.classList.remove("tdwin"); });
-    winRows.forEach(function(ri){
-      var cell=document.querySelector('#tbl .cell[data-r="'+ri+'"][data-c="'+c+'"]');
+    function markCell(ri,ci){
+      if(ci<0 || ci>=colCount) return;
+      var cell=document.querySelector('#tbl .cell[data-r="'+ri+'"][data-c="'+ci+'"]');
       if(cell){ cell.classList.add("cellwin"); if(cell.parentElement) cell.parentElement.classList.add("tdwin"); }
+    }
+    winRows.forEach(function(w){
+      markCell(w.i, c);                       // ô số ở cột dò
+      if(w.dau) markCell(w.i, c-1);           // trúng ĐẦU → tô tiền ở cột bên TRÁI
+      if(w.duoi) markCell(w.i, c+1);          // trúng ĐUÔI → tô tiền ở cột bên PHẢI
     });
   });
 
