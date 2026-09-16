@@ -325,38 +325,38 @@
   function sleep(ms){ return new Promise(function(res){ setTimeout(res,ms); }); }
   function shortName(id){ var p=String(id).split("/"); return p[p.length-1].replace(":free",""); }
 
-  /* Model đang chọn xếp trước, rồi tới các model free khác trong danh sách */
+  /* Danh sách model theo thứ tự đã sắp (model nhanh trước) */
   function orderedModels(){
-    var sel=$("modelSel"), chosen=sel.value, all=[];
+    var sel=$("modelSel"), all=[];
     Array.prototype.forEach.call(sel.options,function(o){ if(o.value) all.push(o.value); });
-    var rest=all.filter(function(m){ return m!==chosen; });
-    return chosen ? [chosen].concat(rest) : rest;
+    return all;
   }
 
-  /* ---------- TỰ ĐỘNG THỬ LẦN LƯỢT CÁC MODEL ---------- */
+  /* ---------- CHẠY SONG SONG NHIỀU MODEL, LẤY CÁI TRẢ NHANH NHẤT ---------- */
   function callWithFallback(dataUrl){
     var models=orderedModels();
     if(!models.length){ status("⚠️ Chưa có model. Bấm ↻ Tải model free.","err"); return; }
-    var maxTry=Math.min(models.length,6);
     $("resultCard").classList.add("hidden");
+    var BATCH=3, LIMIT=Math.min(models.length,6);
 
     (async function(){
       var lastErr="";
-      for(var i=0;i<maxTry;i++){
-        var m=models[i];
-        status('<span class="spin"></span> Đang đọc ảnh… model: '+shortName(m)+(i>0?' (tự đổi vì model trước bận)':'')+' — '+(i+1)+'/'+maxTry);
+      for(var start=0; start<LIMIT; start+=BATCH){
+        var batch=models.slice(start, start+BATCH);
+        status('<span class="spin"></span> Đang đọc ảnh… thử '+batch.length+' model nhanh cùng lúc'+(start>0?' (đợt '+(start/BATCH+1)+')':'')+'…');
         try{
-          var rows=await callOne(dataUrl,m);
-          if(rows&&rows.length){
-            if($("modelSel").value!==m){ $("modelSel").value=m; try{localStorage.setItem(LS_MODEL,m);}catch(e){} }
-            buildTable(rows); clearStatus(); return;
-          }
-          lastErr="model đọc chưa ra bảng số";
+          var res=await Promise.any(batch.map(function(m){
+            return callOne(dataUrl,m).then(function(rows){ if(rows&&rows.length) return {rows:rows,model:m}; throw new Error("no rows"); });
+          }));
+          buildTable(res.rows); clearStatus();
+          if($("modelSel").value!==res.model){ $("modelSel").value=res.model; try{localStorage.setItem(LS_MODEL,res.model);}catch(e){} }
+          return;
         }catch(e){
-          if(e&&e.fatal){ status("❌ "+e.message,"err"); return; }
-          lastErr=(e&&e.message)||"lỗi";
+          var errs=(e&&e.errors)||[e];
+          var fatal=null; for(var k=0;k<errs.length;k++){ if(errs[k]&&errs[k].fatal){ fatal=errs[k]; break; } }
+          if(fatal){ status("❌ "+fatal.message,"err"); return; }
+          lastErr=(errs[0]&&errs[0].message)||"lỗi";
         }
-        if(i<maxTry-1) await sleep(300);
       }
       status("❌ Các model đang bận hoặc đọc chưa ra ("+lastErr+"). Chờ chút rồi thả lại ảnh nhé.","err");
     })();
@@ -384,7 +384,7 @@
         "Content-Type":"application/json","Authorization":"Bearer "+getKey(),"X-Title":"Tinh tong cot"
       },body:JSON.stringify(body)};
     if(ctl) opt.signal=ctl.signal;
-    var to=ctl?setTimeout(function(){ try{ctl.abort();}catch(e){} },18000):null;
+    var to=ctl?setTimeout(function(){ try{ctl.abort();}catch(e){} },15000):null;
     return fetch(API,opt)
     .then(function(r){ if(to)clearTimeout(to); return r.json().then(function(j){ return {ok:r.ok,status:r.status,j:j}; }); })
     .then(function(res){
