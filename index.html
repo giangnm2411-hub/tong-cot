@@ -310,10 +310,14 @@
   function callOne(dataUrl,model){
     var prompt=
       "Đọc bảng số trong ảnh. Mỗi dòng trong ảnh là một hàng; trên mỗi hàng các số ngăn cách bởi dấu gạch, "+
-      "khoảng trắng hoặc dấu phẩy. Trả về DUY NHẤT một JSON, không kèm giải thích, không markdown, dạng: "+
+      "khoảng trắng hoặc dấu phẩy. "+
+      "KÝ HIỆU LẶP: nếu ở một cột, dưới một con số có GẠCH DỌC '|' (dấu nháy ditto) kéo dài qua vài dòng, "+
+      "thì con số phía trên được LẶP LẠI cho từng dòng đó — hãy điền lại đúng con số đó cho các dòng đó, "+
+      "KHÔNG để trống và KHÔNG dùng 0. "+
+      "Trả về DUY NHẤT một JSON, không kèm giải thích, không markdown, dạng: "+
       '{"rows": [[8,32,100],[10,72,120]]}. '+
-      "Mỗi mảng con là một hàng, các số theo đúng thứ tự cột từ TRÁI sang PHẢI. Ô trống dùng 0. "+
-      "Giữ nguyên số hàng và số cột như trong ảnh.";
+      "Mỗi mảng con là một hàng, các số theo đúng thứ tự cột từ TRÁI sang PHẢI. Chỉ ô THỰC SỰ trống mới dùng 0. "+
+      "Giữ nguyên đúng thứ tự và số lượng các hàng như trong ảnh.";
     var body={ model:model, temperature:0, messages:[{role:"user",content:[
       {type:"text",text:prompt},{type:"image_url",image_url:{url:dataUrl}}
     ]}]};
