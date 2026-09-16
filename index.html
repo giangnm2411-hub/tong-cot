@@ -9,14 +9,14 @@
     --bg:#f4f6fb; --card:#ffffff; --ink:#1a2230; --muted:#66738a;
     --line:#e2e8f2; --brand:#3f6fff; --brand-ink:#2b53d6;
     --ok:#12a150; --okbg:#e7f7ee; --warn:#c2410c; --warnbg:#fdeee2;
-    --accent:#f0f4ff; --red:#dc2626; --shadow:0 8px 30px rgba(30,45,80,.08);
+    --accent:#f0f4ff; --red:#dc2626; --redbg:#fdeaea; --shadow:0 8px 30px rgba(30,45,80,.08);
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
       --bg:#0f141c; --card:#161d28; --ink:#e8edf6; --muted:#94a1b8;
       --line:#273041; --brand:#5c86ff; --brand-ink:#8aa8ff;
       --ok:#3ad07f; --okbg:#12331f; --warn:#f0a05a; --warnbg:#3a2513;
-      --accent:#1a2334; --red:#f87171; --shadow:0 8px 30px rgba(0,0,0,.35);
+      --accent:#1a2334; --red:#f87171; --redbg:#3a1616; --shadow:0 8px 30px rgba(0,0,0,.35);
     }
   }
   *{box-sizing:border-box}
@@ -107,6 +107,8 @@
   .loto-tbl tr.hit td{background:var(--okbg)}
   .loto-tbl td.win{color:var(--red);font-weight:800}
   .red{color:var(--red);font-weight:800}
+  td input.cell.cellwin{color:var(--red);font-weight:800}
+  #tbl td.tdwin{background:var(--redbg)}
   .loto-sum{margin-top:12px;font-weight:800;font-size:16px;color:var(--brand-ink)}
 </style>
 </head>
@@ -507,7 +509,7 @@
     var c=+$("lotoCol").value||0;
     var mode=(document.querySelector('input[name="lotomode"]:checked')||{}).value||"dd";
     var nums=[]; for(var r=0;r<data.length;r++){ nums.push({raw:data[r][c], n2:last2(data[r][c])}); }
-    var rowsHtml="", hitCount=0, noteHtml="";
+    var rowsHtml="", hitCount=0, noteHtml="", winRows=[];
 
     function rowHtml(i,o,hit,kq){
       var w=hit?' class="win"':'';
@@ -523,7 +525,7 @@
         if(dau && o.n2===dau) tags.push("đầu");
         if(duoi && o.n2===duoi) tags.push("đuôi");
         var kq="Trượt";
-        if(tags.length){ hit=true; hitCount++; kq="TRÚNG ("+tags.join(", ")+")"; }
+        if(tags.length){ hit=true; hitCount++; winRows.push(i); kq="TRÚNG ("+tags.join(", ")+")"; }
         rowsHtml+=rowHtml(i,o,hit,kq);
       });
     } else {
@@ -533,7 +535,7 @@
       noteHtml=esc("Đã lấy 2 số cuối của "+pool.length+" giải để dò lô.");
       nums.forEach(function(o,i){
         var cnt=0; for(var k=0;k<pool.length;k++){ if(pool[k]===o.n2) cnt++; }
-        var hit=cnt>0; if(hit) hitCount++;
+        var hit=cnt>0; if(hit){ hitCount++; winRows.push(i); }
         var kq= hit ? ("TRÚNG × "+cnt) : "Trượt";
         rowsHtml+=rowHtml(i,o,hit,kq);
       });
@@ -544,6 +546,14 @@
     html+='<div class="table-scroll"><table class="loto-tbl"><tr><th>STT</th><th>Giá trị</th><th>2 số cuối</th><th>Kết quả</th></tr>'+rowsHtml+'</table></div>';
     html+='<div class="loto-sum">✅ Trúng '+hitCount+' / '+nums.length+' số ('+esc(colLabel)+')</div>';
     $("lotoResult").innerHTML=html;
+
+    // Tô đỏ số trúng ngay trên BẢNG CHÍNH
+    Array.prototype.forEach.call(document.querySelectorAll("#tbl .cellwin"),function(el){ el.classList.remove("cellwin"); });
+    Array.prototype.forEach.call(document.querySelectorAll("#tbl td.tdwin"),function(el){ el.classList.remove("tdwin"); });
+    winRows.forEach(function(ri){
+      var cell=document.querySelector('#tbl .cell[data-r="'+ri+'"][data-c="'+c+'"]');
+      if(cell){ cell.classList.add("cellwin"); if(cell.parentElement) cell.parentElement.classList.add("tdwin"); }
+    });
   });
 
   /* ---- Tự lấy số từ ảnh kết quả xổ số ---- */
