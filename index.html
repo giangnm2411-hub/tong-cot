@@ -256,7 +256,7 @@
           return free && vision;
         });
         // ưu tiên các dòng đọc chữ tốt
-        var pref=["gemini","gemma","qwen","llama","pixtral","mistral","intern","nemotron"];
+        var pref=["flash","nano","mini","small","lite","gemma","qwen","gemini","nemotron","ling","llama","pixtral","mistral","intern"];
         list.sort(function(a,b){
           function score(id){id=id.toLowerCase();for(var i=0;i<pref.length;i++){if(id.indexOf(pref[i])>=0)return i;}return 99;}
           var d=score(a.id)-score(b.id); return d!==0?d:a.id.localeCompare(b.id);
@@ -303,13 +303,23 @@
   function handleImage(file){
     if(!getKey()){ status("⚠️ Bạn chưa nhập OpenRouter API key ở phần Cài đặt.","err"); $("apiKey").focus(); return; }
     if(!$("modelSel").value){ status("⚠️ Chưa chọn được model. Bấm ↻ Tải model free.","err"); return; }
-    var reader=new FileReader();
-    reader.onload=function(){
-      var dataUrl=reader.result;
-      $("preview").innerHTML='<img src="'+dataUrl+'" alt="ảnh đã bỏ vào">';
-      callWithFallback(dataUrl);
+    function fallbackRaw(){ var rd=new FileReader(); rd.onload=function(){ $("preview").innerHTML='<img src="'+rd.result+'" alt="ảnh">'; callWithFallback(rd.result); }; rd.readAsDataURL(file); }
+    var url=URL.createObjectURL(file), img=new Image();
+    img.onload=function(){
+      var max=1100, w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+      var sc=Math.min(1, max/Math.max(w, h||1));
+      var cw=Math.max(1,Math.round(w*sc)), ch=Math.max(1,Math.round(h*sc));
+      var cv=document.createElement("canvas"); cv.width=cw; cv.height=ch;
+      try{
+        cv.getContext("2d").drawImage(img,0,0,cw,ch);
+        var dataUrl=cv.toDataURL("image/jpeg",0.82);
+        URL.revokeObjectURL(url);
+        $("preview").innerHTML='<img src="'+dataUrl+'" alt="ảnh đã bỏ vào">';
+        callWithFallback(dataUrl);
+      }catch(e){ URL.revokeObjectURL(url); fallbackRaw(); }
     };
-    reader.readAsDataURL(file);
+    img.onerror=function(){ URL.revokeObjectURL(url); fallbackRaw(); };
+    img.src=url;
   }
 
   function sleep(ms){ return new Promise(function(res){ setTimeout(res,ms); }); }
@@ -327,7 +337,7 @@
   function callWithFallback(dataUrl){
     var models=orderedModels();
     if(!models.length){ status("⚠️ Chưa có model. Bấm ↻ Tải model free.","err"); return; }
-    var maxTry=Math.min(models.length,8);
+    var maxTry=Math.min(models.length,6);
     $("resultCard").classList.add("hidden");
 
     (async function(){
@@ -346,9 +356,9 @@
           if(e&&e.fatal){ status("❌ "+e.message,"err"); return; }
           lastErr=(e&&e.message)||"lỗi";
         }
-        if(i<maxTry-1) await sleep(1000);
+        if(i<maxTry-1) await sleep(300);
       }
-      status("❌ Các model đang bận hoặc đọc chưa ra ("+lastErr+"). Chờ ~1 phút rồi thả lại ảnh nhé.","err");
+      status("❌ Các model đang bận hoặc đọc chưa ra ("+lastErr+"). Chờ chút rồi thả lại ảnh nhé.","err");
     })();
   }
 
@@ -369,10 +379,14 @@
     var body={ model:model, temperature:0, messages:[{role:"user",content:[
       {type:"text",text:prompt},{type:"image_url",image_url:{url:dataUrl}}
     ]}]};
-    return fetch(API,{method:"POST",headers:{
+    var ctl=("AbortController" in window)?new AbortController():null;
+    var opt={method:"POST",headers:{
         "Content-Type":"application/json","Authorization":"Bearer "+getKey(),"X-Title":"Tinh tong cot"
-      },body:JSON.stringify(body)})
-    .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,status:r.status,j:j}; }); })
+      },body:JSON.stringify(body)};
+    if(ctl) opt.signal=ctl.signal;
+    var to=ctl?setTimeout(function(){ try{ctl.abort();}catch(e){} },18000):null;
+    return fetch(API,opt)
+    .then(function(r){ if(to)clearTimeout(to); return r.json().then(function(j){ return {ok:r.ok,status:r.status,j:j}; }); })
     .then(function(res){
       if(!res.ok){
         var msg=(res.j&&res.j.error&&(res.j.error.message||res.j.error))||("Lỗi HTTP "+res.status);
