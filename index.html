@@ -32,7 +32,7 @@
   .badge{font-size:11px;font-weight:700;background:var(--accent);color:var(--brand-ink);
     padding:2px 8px;border-radius:999px}
   label.fld{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
-  input[type=password],input[type=text],select{width:100%;padding:11px 12px;border:1px solid var(--line);
+  input[type=password],input[type=text],input[type=date],select{width:100%;padding:11px 12px;border:1px solid var(--line);
     border-radius:10px;background:var(--bg);color:var(--ink);font-size:14px;font-family:inherit}
   input:focus,select:focus{outline:none;border-color:var(--brand)}
   button{cursor:pointer;border:none;border-radius:10px;font-size:14px;font-weight:600;
@@ -197,8 +197,20 @@
         <textarea id="lotoAll" rows="4" placeholder="vd:&#10;Đặc biệt 123456&#10;Nhất 78901&#10;Nhì 23456 34567&#10;... (dán cả kết quả cũng được)"></textarea>
       </div>
     </div>
-    <div class="loto-row" style="margin:12px 0 0">
-      <button class="btn-ghost btn-sm" id="lotoImgBtn">📷 Tự lấy số từ ảnh kết quả xổ số</button>
+    <div class="loto-row" style="margin:14px 0 0">
+      <label class="fld" style="margin:0">🎲 Lấy KQXS:</label>
+      <select id="xsMien"><option value="south">Miền Nam</option><option value="central">Miền Trung</option></select>
+      <input type="date" id="xsDate" style="width:auto">
+      <button class="btn-primary btn-sm" id="xsFetchBtn">Lấy kết quả</button>
+    </div>
+    <div class="loto-row" id="xsProvinceRow" style="display:none">
+      <label class="fld" style="margin:0">Chọn đài:</label>
+      <select id="xsProvince"></select>
+    </div>
+    <div class="hint" id="xsStatus"></div>
+    <div class="hint" style="margin-top:10px">— hoặc tự lấy từ ảnh —</div>
+    <div class="loto-row" style="margin:8px 0 0">
+      <button class="btn-ghost btn-sm" id="lotoImgBtn">📷 Lấy số từ ảnh kết quả xổ số</button>
       <input type="file" id="lotoImg" accept="image/*" class="hidden">
     </div>
     <div class="hint" id="lotoImgStatus"></div>
@@ -622,6 +634,51 @@
     if(Array.isArray(o.all) && o.all.length){ $("lotoAll").value=o.all.join(" "); msg.push(o.all.length+" số cho lô"); }
     $("lotoImgStatus").innerHTML='<span style="color:var(--ok)">✓ Đã tự lấy: '+esc(msg.join("  ·  "))+'. Chọn kiểu dò rồi bấm <b>Dò ngay</b>.</span>';
   }
+
+  /* ---- Lấy KQXS tự động từ dữ liệu công khai (raw.githubusercontent) ---- */
+  var xsData=[];
+  function xsToday(){ var d=new Date(); function p(n){return(n<10?"0":"")+n;} return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()); }
+  if($("xsDate")) $("xsDate").value=xsToday();
+
+  function fillFromPrizes(p){
+    if(!p) return;
+    var g8=Array.isArray(p.eighthPrize)?p.eighthPrize[0]:p.eighthPrize;
+    $("lotoDau").value=last2Str(String(g8||""))||"";
+    $("lotoDuoi").value=last2Str(String(p.specialPrize||""))||"";
+    var all=[];
+    ["specialPrize","firstPrize","secondPrize","thirdPrize","fourthPrize","fifthPrize","sixthPrize","seventhPrize","eighthPrize"].forEach(function(k){
+      var v=p[k]; if(v==null) return;
+      if(Array.isArray(v)) v.forEach(function(x){ if(x!=null) all.push(String(x)); }); else all.push(String(v));
+    });
+    $("lotoAll").value=all.join(" ");
+  }
+
+  $("xsFetchBtn").addEventListener("click",function(){
+    var mien=$("xsMien").value, date=$("xsDate").value;
+    if(!date){ $("xsStatus").innerHTML='<span style="color:var(--warn)">Chọn ngày trước.</span>'; return; }
+    $("xsStatus").innerHTML='<span class="spin"></span> Đang lấy kết quả…';
+    $("xsProvinceRow").style.display="none";
+    fetch("https://raw.githubusercontent.com/rytekvn/lottery-data/main/results/"+mien+"/"+date+".json",{cache:"no-store"})
+      .then(function(r){ if(!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then(function(j){
+        xsData=(j&&j.results)||[];
+        if(!xsData.length){ $("xsStatus").innerHTML='<span style="color:var(--warn)">Chưa có kết quả cho ngày này.</span>'; return; }
+        var sel=$("xsProvince"); sel.innerHTML="";
+        xsData.forEach(function(rr,i){ var o=document.createElement("option"); o.value=i; o.textContent=rr.province; sel.appendChild(o); });
+        $("xsProvinceRow").style.display="flex";
+        fillFromPrizes(xsData[0].prizes);
+        $("xsStatus").innerHTML='<span style="color:var(--ok)">✓ Đã lấy '+xsData.length+' đài ('+esc(j.region||"")+' '+esc(date)+'). Chọn đài → chọn kiểu dò → Dò ngay.</span>';
+      })
+      .catch(function(e){
+        var m=(String(e.message)==="404")?"Chưa có kết quả cho ngày này (xổ số có sau ~16h30–19h). Thử ngày trước đó.":"Không lấy được kết quả (mạng?). Thử lại.";
+        $("xsStatus").innerHTML='<span style="color:var(--warn)">❌ '+m+'</span>';
+      });
+  });
+
+  if($("xsProvince")) $("xsProvince").addEventListener("change",function(){
+    var i=+$("xsProvince").value||0; if(xsData[i]) fillFromPrizes(xsData[i].prizes);
+    $("xsStatus").innerHTML='<span style="color:var(--ok)">✓ Đã điền số của đài '+esc(xsData[i]?xsData[i].province:"")+'. Chọn kiểu dò → Dò ngay.</span>';
+  });
 
   /* ---------- NÚT ---------- */
   $("allBtn").addEventListener("click",function(){
