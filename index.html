@@ -178,24 +178,16 @@
 
   <!-- DÒ VÉ SỐ -->
   <div class="card hidden" id="lotoCard">
-    <h2>🎯 Dò vé số</h2>
+    <h2>🎯 Dò vé số (đầu–đuôi)</h2>
     <div class="loto-row">
-      <label class="fld" style="margin:0">Dò theo cột:</label>
+      <label class="fld" style="margin:0">Dò cột:</label>
       <select id="lotoCol"></select>
+      <label class="fld" style="margin:0">và cột:</label>
+      <select id="lotoCol2"></select>
     </div>
-    <div class="loto-modes">
-      <label><input type="radio" name="lotomode" value="dd" checked> <span>Đầu–đuôi: so với <b>giải tám</b> và <b>2 số cuối giải đặc biệt</b></span></label>
-      <label><input type="radio" name="lotomode" value="lo"> <span>Lô: dò <b>2 số cuối của tất cả các giải</b></span></label>
-    </div>
-    <div id="ddInputs" class="loto-inputs">
+    <div class="loto-inputs">
       <div><label class="fld">Giải tám (đầu)</label><input type="text" id="lotoDau" inputmode="numeric" placeholder="vd 12" maxlength="3"></div>
       <div><label class="fld">2 số cuối Đặc biệt (đuôi)</label><input type="text" id="lotoDuoi" inputmode="numeric" placeholder="vd 56" maxlength="3"></div>
-    </div>
-    <div id="loInputs" class="loto-inputs hidden">
-      <div style="flex:1 1 100%">
-        <label class="fld">Các số của mọi giải (cách nhau bởi dấu cách/xuống dòng). App tự lấy 2 số cuối mỗi giải.</label>
-        <textarea id="lotoAll" rows="4" placeholder="vd:&#10;Đặc biệt 123456&#10;Nhất 78901&#10;Nhì 23456 34567&#10;... (dán cả kết quả cũng được)"></textarea>
-      </div>
     </div>
     <div class="loto-row" style="margin:14px 0 0">
       <label class="fld" style="margin:0">🎲 Lấy KQXS:</label>
@@ -208,13 +200,7 @@
       <select id="xsProvince"></select>
     </div>
     <div class="hint" id="xsStatus"></div>
-    <div class="hint" style="margin-top:10px">— hoặc tự lấy từ ảnh —</div>
-    <div class="loto-row" style="margin:8px 0 0">
-      <button class="btn-ghost btn-sm" id="lotoImgBtn">📷 Lấy số từ ảnh kết quả xổ số</button>
-      <input type="file" id="lotoImg" accept="image/*" class="hidden">
-    </div>
-    <div class="hint" id="lotoImgStatus"></div>
-    <div style="margin-top:12px"><button class="btn-primary" id="lotoBtn">Dò ngay</button></div>
+    <div style="margin-top:14px"><button class="btn-primary" id="lotoBtn">Dò ngay</button></div>
     <div id="lotoResult"></div>
   </div>
 </div>
@@ -373,10 +359,12 @@
       "khoảng trắng hoặc dấu phẩy. "+
       "KÝ HIỆU LẶP: nếu ở một cột, dưới một con số có GẠCH DỌC '|' (dấu nháy ditto) kéo dài qua vài dòng, "+
       "thì con số phía trên được LẶP LẠI cho từng dòng đó — hãy điền lại đúng con số đó cho các dòng đó, "+
-      "KHÔNG để trống và KHÔNG dùng 0. "+
+      "hãy điền lại đúng con số đó cho các dòng đó. "+
+      "TUYỆT ĐỐI KHÔNG dùng số 0 và KHÔNG để ô trống — bảng này KHÔNG có số 0. "+
+      "Ô nào không có chữ số riêng (chỉ có gạch dọc / để trống) thì LUÔN lặp lại con số ở ô ngay phía trên cùng cột. "+
       "Trả về DUY NHẤT một JSON, không kèm giải thích, không markdown, dạng: "+
       '{"rows": [[8,32,100],[10,72,120]]}. '+
-      "Mỗi mảng con là một hàng, các số theo đúng thứ tự cột từ TRÁI sang PHẢI. Chỉ ô THỰC SỰ trống mới dùng 0. "+
+      "Mỗi mảng con là một hàng, các số theo đúng thứ tự cột từ TRÁI sang PHẢI. "+
       "Giữ nguyên đúng thứ tự và số lượng các hàng như trong ảnh.";
     var body={ model:model, temperature:0, messages:[{role:"user",content:[
       {type:"text",text:prompt},{type:"image_url",image_url:{url:dataUrl}}
@@ -432,6 +420,8 @@
   function buildTable(rows){
     colCount=0; rows.forEach(function(r){ if(r.length>colCount) colCount=r.length; });
     data=rows.map(function(r){ var out=[]; for(var c=0;c<colCount;c++){ out.push(isFinite(r[c])?r[c]:0); } return out; });
+    // Gạch kéo xuống: ô 0/trống = lặp lại giá trị phía trên cùng cột (dữ liệu không có số 0 thật)
+    for(var fc=0;fc<colCount;fc++){ var lastv=null; for(var fr=0;fr<data.length;fr++){ if(data[fr][fc]===0||!isFinite(data[fr][fc])){ if(lastv!=null) data[fr][fc]=lastv; } else { lastv=data[fr][fc]; } } }
     if(colNames.length!==colCount){
       colNames=[]; colOn=[];
       for(var c=0;c<colCount;c++){ colNames.push("Cột "+(c+1)); colOn.push(true); }
@@ -498,142 +488,55 @@
   function last2(v){ var s=String(Math.abs(Math.round(Number(v)||0))); s=s.slice(-2); while(s.length<2) s="0"+s; return s; }
   function last2Str(str){ var d=String(str).replace(/[^0-9]/g,""); if(!d) return null; d=d.slice(-2); while(d.length<2) d="0"+d; return d; }
 
+  function norm(s){ return String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]/g,""); }
+  function colName(c){ return colNames[c]||("Cột "+(c+1)); }
+
   function setupLoto(){
-    var sel=$("lotoCol"); sel.innerHTML="";
+    var s1=$("lotoCol"), s2=$("lotoCol2");
+    s1.innerHTML=""; s2.innerHTML='<option value="-1">— không —</option>';
     for(var c=0;c<colCount;c++){
-      var o=document.createElement("option"); o.value=c; o.textContent=colNames[c]||("Cột "+(c+1)); sel.appendChild(o);
+      var o1=document.createElement("option"); o1.value=c; o1.textContent=colName(c); s1.appendChild(o1);
+      var o2=document.createElement("option"); o2.value=c; o2.textContent=colName(c); s2.appendChild(o2);
     }
-    if(colCount>=2) sel.value="1"; // mặc định cột 2
+    s1.value=(colCount>=2)?"1":"0"; s2.value="-1";
     $("lotoResult").innerHTML="";
     $("lotoCard").classList.remove("hidden");
+    if(!xsData.length) doFetch();
   }
-
-  Array.prototype.forEach.call(document.getElementsByName("lotomode"),function(r){
-    r.addEventListener("change",function(){
-      var lo=(document.querySelector('input[name="lotomode"]:checked')||{}).value==="lo";
-      $("loInputs").classList.toggle("hidden",!lo);
-      $("ddInputs").classList.toggle("hidden",lo);
-    });
-  });
 
   $("lotoBtn").addEventListener("click",function(){
     if(!colCount) return;
-    var c=+$("lotoCol").value||0;
-    var mode=(document.querySelector('input[name="lotomode"]:checked')||{}).value||"dd";
-    var nums=[]; for(var r=0;r<data.length;r++){ nums.push({raw:data[r][c], n2:last2(data[r][c])}); }
-    var rowsHtml="", hitCount=0, noteHtml="", winRows=[];
+    var cols=[]; var c1=+$("lotoCol").value; if(isFinite(c1)) cols.push(c1);
+    var c2=+$("lotoCol2").value; if(isFinite(c2)&&c2>=0&&c2!==c1) cols.push(c2);
+    if(!cols.length) return;
+    var dau=last2Str($("lotoDau").value), duoi=last2Str($("lotoDuoi").value);
+    if(!dau && !duoi){ $("lotoResult").innerHTML='<div class="hint" style="color:var(--warn)">⚠️ Chưa có số đầu/đuôi. Bấm "Lấy kết quả" hoặc nhập tay.</div>'; return; }
 
-    function rowHtml(i,o,hit,kq){
-      var w=hit?' class="win"':'';
-      return '<tr class="'+(hit?"hit":"")+'"><td>'+(i+1)+'</td><td'+w+'>'+esc(String(o.raw))+'</td><td'+w+'>'+o.n2+'</td><td'+w+'>'+kq+'</td></tr>';
-    }
+    var multi=cols.length>1, rowsHtml="", hitCount=0, totalNums=0, winMarks=[];
+    cols.forEach(function(c){
+      for(var r=0;r<data.length;r++){
+        var n2=last2(data[r][c]); totalNums++;
+        var tags=[]; if(dau&&n2===dau) tags.push("đầu"); if(duoi&&n2===duoi) tags.push("đuôi");
+        var hit=tags.length>0, kq="Trượt";
+        if(hit){ hitCount++; kq="TRÚNG ("+tags.join(", ")+")"; winMarks.push({r:r,c:c,dau:(dau&&n2===dau),duoi:(duoi&&n2===duoi)}); }
+        var w=hit?' class="win"':'';
+        rowsHtml+='<tr class="'+(hit?"hit":"")+'">'+(multi?'<td'+w+'>'+esc(colName(c))+'</td>':'')+'<td>'+(r+1)+'</td><td'+w+'>'+esc(String(data[r][c]))+'</td><td'+w+'>'+n2+'</td><td'+w+'>'+kq+'</td></tr>';
+      }
+    });
 
-    if(mode==="dd"){
-      var dau=last2Str($("lotoDau").value), duoi=last2Str($("lotoDuoi").value);
-      if(!dau && !duoi){ $("lotoResult").innerHTML='<div class="hint" style="color:var(--warn)">⚠️ Nhập giải tám và/hoặc 2 số cuối đặc biệt trước.</div>'; return; }
-      noteHtml='Đầu (giải 8) = <b class="red">'+esc(dau||"—")+'</b>   ·   Đuôi (2 số cuối ĐB) = <b class="red">'+esc(duoi||"—")+'</b>';
-      nums.forEach(function(o,i){
-        var hit=false, tags=[];
-        if(dau && o.n2===dau) tags.push("đầu");
-        if(duoi && o.n2===duoi) tags.push("đuôi");
-        var kq="Trượt";
-        if(tags.length){ hit=true; hitCount++; winRows.push({i:i, dau:(dau&&o.n2===dau), duoi:(duoi&&o.n2===duoi)}); kq="TRÚNG ("+tags.join(", ")+")"; }
-        rowsHtml+=rowHtml(i,o,hit,kq);
-      });
-    } else {
-      var groups=String($("lotoAll").value).match(/\d{2,}/g)||[];
-      if(!groups.length){ $("lotoResult").innerHTML='<div class="hint" style="color:var(--warn)">⚠️ Dán kết quả xổ số (các số của các giải) vào ô trước.</div>'; return; }
-      var pool=groups.map(function(g){ return last2Str(g); });
-      noteHtml=esc("Đã lấy 2 số cuối của "+pool.length+" giải để dò lô.");
-      nums.forEach(function(o,i){
-        var cnt=0; for(var k=0;k<pool.length;k++){ if(pool[k]===o.n2) cnt++; }
-        var hit=cnt>0; if(hit){ hitCount++; winRows.push({i:i}); }
-        var kq= hit ? ("TRÚNG × "+cnt) : "Trượt";
-        rowsHtml+=rowHtml(i,o,hit,kq);
-      });
-    }
-
-    var colLabel=$("lotoCol").options[$("lotoCol").selectedIndex].textContent;
+    var noteHtml='Đầu (giải 8) = <b class="red">'+esc(dau||"—")+'</b>   ·   Đuôi (2 số cuối ĐB) = <b class="red">'+esc(duoi||"—")+'</b>';
+    var head='<tr>'+(multi?'<th>Cột</th>':'')+'<th>STT</th><th>Giá trị</th><th>2 số cuối</th><th>Kết quả</th></tr>';
     var html='<div class="hint">'+noteHtml+'</div>';
-    html+='<div class="table-scroll"><table class="loto-tbl"><tr><th>STT</th><th>Giá trị</th><th>2 số cuối</th><th>Kết quả</th></tr>'+rowsHtml+'</table></div>';
-    html+='<div class="loto-sum">✅ Trúng '+hitCount+' / '+nums.length+' số ('+esc(colLabel)+')</div>';
+    html+='<div class="table-scroll"><table class="loto-tbl">'+head+rowsHtml+'</table></div>';
+    html+='<div class="loto-sum">✅ Trúng '+hitCount+' / '+totalNums+' số</div>';
     $("lotoResult").innerHTML=html;
 
-    // Tô đỏ số trúng ngay trên BẢNG CHÍNH
+    // Tô đỏ trên BẢNG CHÍNH: số trúng + tiền đầu (trái) / tiền đuôi (phải)
     Array.prototype.forEach.call(document.querySelectorAll("#tbl .cellwin"),function(el){ el.classList.remove("cellwin"); });
     Array.prototype.forEach.call(document.querySelectorAll("#tbl td.tdwin"),function(el){ el.classList.remove("tdwin"); });
-    function markCell(ri,ci){
-      if(ci<0 || ci>=colCount) return;
-      var cell=document.querySelector('#tbl .cell[data-r="'+ri+'"][data-c="'+ci+'"]');
-      if(cell){ cell.classList.add("cellwin"); if(cell.parentElement) cell.parentElement.classList.add("tdwin"); }
-    }
-    winRows.forEach(function(w){
-      markCell(w.i, c);                       // ô số ở cột dò
-      if(w.dau) markCell(w.i, c-1);           // trúng ĐẦU → tô tiền ở cột bên TRÁI
-      if(w.duoi) markCell(w.i, c+1);          // trúng ĐUÔI → tô tiền ở cột bên PHẢI
-    });
+    function markCell(ri,ci){ if(ci<0||ci>=colCount) return; var cell=document.querySelector('#tbl .cell[data-r="'+ri+'"][data-c="'+ci+'"]'); if(cell){ cell.classList.add("cellwin"); if(cell.parentElement) cell.parentElement.classList.add("tdwin"); } }
+    winMarks.forEach(function(w){ markCell(w.r,w.c); if(w.dau) markCell(w.r,w.c-1); if(w.duoi) markCell(w.r,w.c+1); });
   });
-
-  /* ---- Tự lấy số từ ảnh kết quả xổ số ---- */
-  $("lotoImgBtn").addEventListener("click",function(){ $("lotoImg").click(); });
-  $("lotoImg").addEventListener("change",function(e){ if(e.target.files[0]) readLottery(e.target.files[0]); });
-
-  function readLottery(file){
-    if(!getKey()||!$("modelSel").value){ $("lotoImgStatus").innerHTML='<span style="color:var(--warn)">⚠️ Cần nhập key + model ở phần Cài đặt trước.</span>'; return; }
-    var reader=new FileReader();
-    reader.onload=function(){ lotteryFromImage(reader.result); };
-    reader.readAsDataURL(file);
-  }
-
-  function callJson(dataUrl,model,prompt){
-    var body={model:model,temperature:0,messages:[{role:"user",content:[
-      {type:"text",text:prompt},{type:"image_url",image_url:{url:dataUrl}}
-    ]}]};
-    return fetch(API,{method:"POST",headers:{
-        "Content-Type":"application/json","Authorization":"Bearer "+getKey(),"X-Title":"Tinh tong cot"
-      },body:JSON.stringify(body)})
-    .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,status:r.status,j:j}; }); })
-    .then(function(res){
-      if(!res.ok){ var e=new Error("Lỗi HTTP "+res.status); if(res.status===401){ e.message="API key không hợp lệ."; e.fatal=true; } throw e; }
-      var txt=""; try{ txt=res.j.choices[0].message.content; if(Array.isArray(txt)) txt=txt.map(function(p){return p.text||"";}).join(""); }catch(e){ throw new Error("model không trả nội dung"); }
-      txt=String(txt).replace(/```json/gi,"").replace(/```/g,"").trim();
-      var obj=null; try{ obj=JSON.parse(txt); }catch(e){}
-      if(!obj){ var a=txt.indexOf("{"), b=txt.lastIndexOf("}"); if(a>=0&&b>a){ try{ obj=JSON.parse(txt.slice(a,b+1)); }catch(e){} } }
-      if(!obj) throw new Error("đọc chưa ra");
-      return obj;
-    });
-  }
-
-  function lotteryFromImage(dataUrl){
-    var models=orderedModels(); if(!models.length){ $("lotoImgStatus").innerHTML='<span style="color:var(--warn)">Chưa có model.</span>'; return; }
-    var maxTry=Math.min(models.length,8);
-    var prompt=
-      "Đây là ảnh KẾT QUẢ XỔ SỐ. Trích thông tin và trả về DUY NHẤT một JSON, không giải thích, dạng: "+
-      '{"giai8":"12","dacbiet":"123456","all":["123456","78901","2345"]}. '+
-      "giai8 = con số của GIẢI TÁM (2 chữ số). dacbiet = con số GIẢI ĐẶC BIỆT (đầy đủ). "+
-      "all = MẢNG chứa TẤT CẢ các số trúng của MỌI giải (đặc biệt, nhất, nhì, ba, tư, năm, sáu, bảy, tám), "+
-      "mỗi con số là một phần tử chuỗi. Chỉ trả JSON.";
-    (async function(){
-      for(var i=0;i<maxTry;i++){
-        var m=models[i];
-        $("lotoImgStatus").innerHTML='<span class="spin"></span> Đang đọc kết quả xổ số… '+shortName(m)+' — '+(i+1)+'/'+maxTry;
-        try{
-          var o=await callJson(dataUrl,m,prompt);
-          if(o && (o.giai8!=null || o.dacbiet!=null || (o.all&&o.all.length))){ applyLottery(o); return; }
-        }catch(e){ if(e&&e.fatal){ $("lotoImgStatus").innerHTML='<span style="color:var(--warn)">❌ '+esc(e.message)+'</span>'; return; } }
-        if(i<maxTry-1) await sleep(1000);
-      }
-      $("lotoImgStatus").innerHTML='<span style="color:var(--warn)">❌ Chưa đọc được kết quả. Thử ảnh rõ hơn hoặc nhập tay.</span>';
-    })();
-  }
-
-  function applyLottery(o){
-    var msg=[];
-    if(o.giai8!=null && String(o.giai8).replace(/[^0-9]/g,"")){ $("lotoDau").value=last2Str(String(o.giai8))||""; msg.push("Giải 8 = "+$("lotoDau").value); }
-    if(o.dacbiet!=null && String(o.dacbiet).replace(/[^0-9]/g,"")){ $("lotoDuoi").value=last2Str(String(o.dacbiet))||""; msg.push("Đuôi ĐB = "+$("lotoDuoi").value); }
-    if(Array.isArray(o.all) && o.all.length){ $("lotoAll").value=o.all.join(" "); msg.push(o.all.length+" số cho lô"); }
-    $("lotoImgStatus").innerHTML='<span style="color:var(--ok)">✓ Đã tự lấy: '+esc(msg.join("  ·  "))+'. Chọn kiểu dò rồi bấm <b>Dò ngay</b>.</span>';
-  }
 
   /* ---- Lấy KQXS tự động từ dữ liệu công khai (raw.githubusercontent) ---- */
   var xsData=[];
@@ -645,18 +548,23 @@
     var g8=Array.isArray(p.eighthPrize)?p.eighthPrize[0]:p.eighthPrize;
     $("lotoDau").value=last2Str(String(g8||""))||"";
     $("lotoDuoi").value=last2Str(String(p.specialPrize||""))||"";
-    var all=[];
-    ["specialPrize","firstPrize","secondPrize","thirdPrize","fourthPrize","fifthPrize","sixthPrize","seventhPrize","eighthPrize"].forEach(function(k){
-      var v=p[k]; if(v==null) return;
-      if(Array.isArray(v)) v.forEach(function(x){ if(x!=null) all.push(String(x)); }); else all.push(String(v));
-    });
-    $("lotoAll").value=all.join(" ");
   }
 
-  $("xsFetchBtn").addEventListener("click",function(){
+  // Đài chính theo thứ (getDay: 0=CN..6=T7). T6 = Bình Dương
+  var daiChinhKey={0:"tiengiang",1:"tphcm",2:"bentre",3:"dongnai",4:"tayninh",5:"binhduong",6:"tphcm"};
+  function autoSelectDai(){
+    if(!xsData.length) return "";
+    var wd=new Date(($("xsDate").value||xsToday())+"T12:00:00").getDay();
+    var key=daiChinhKey[wd], pick=0;
+    for(var i=0;i<xsData.length;i++){ if(key && norm(xsData[i].province).indexOf(key)>=0){ pick=i; break; } }
+    $("xsProvince").value=pick; fillFromPrizes(xsData[pick].prizes);
+    return xsData[pick].province;
+  }
+
+  function doFetch(){
     var mien=$("xsMien").value, date=$("xsDate").value;
     if(!date){ $("xsStatus").innerHTML='<span style="color:var(--warn)">Chọn ngày trước.</span>'; return; }
-    $("xsStatus").innerHTML='<span class="spin"></span> Đang lấy kết quả…';
+    $("xsStatus").innerHTML='<span class="spin"></span> Đang lấy kết quả xổ số…';
     $("xsProvinceRow").style.display="none";
     fetch("https://raw.githubusercontent.com/rytekvn/lottery-data/main/results/"+mien+"/"+date+".json",{cache:"no-store"})
       .then(function(r){ if(!r.ok) throw new Error(String(r.status)); return r.json(); })
@@ -666,18 +574,21 @@
         var sel=$("xsProvince"); sel.innerHTML="";
         xsData.forEach(function(rr,i){ var o=document.createElement("option"); o.value=i; o.textContent=rr.province; sel.appendChild(o); });
         $("xsProvinceRow").style.display="flex";
-        fillFromPrizes(xsData[0].prizes);
-        $("xsStatus").innerHTML='<span style="color:var(--ok)">✓ Đã lấy '+xsData.length+' đài ('+esc(j.region||"")+' '+esc(date)+'). Chọn đài → chọn kiểu dò → Dò ngay.</span>';
+        var dai=autoSelectDai();
+        $("xsStatus").innerHTML='<span style="color:var(--ok)">✓ Đã lấy '+xsData.length+' đài ('+esc(j.region||"")+' '+esc(date)+'). Đã chọn đài chính: <b>'+esc(dai)+'</b>. Chọn cột → Dò ngay.</span>';
       })
       .catch(function(e){
-        var m=(String(e.message)==="404")?"Chưa có kết quả cho ngày này (xổ số có sau ~16h30–19h). Thử ngày trước đó.":"Không lấy được kết quả (mạng?). Thử lại.";
+        var m=(String(e.message)==="404")?"Chưa có kết quả cho ngày này (xổ số có sau ~16h30–19h). Chọn ngày trước đó rồi bấm Lấy kết quả.":"Không lấy được kết quả (mạng?). Thử lại.";
         $("xsStatus").innerHTML='<span style="color:var(--warn)">❌ '+m+'</span>';
       });
-  });
+  }
 
-  if($("xsProvince")) $("xsProvince").addEventListener("change",function(){
-    var i=+$("xsProvince").value||0; if(xsData[i]) fillFromPrizes(xsData[i].prizes);
-    $("xsStatus").innerHTML='<span style="color:var(--ok)">✓ Đã điền số của đài '+esc(xsData[i]?xsData[i].province:"")+'. Chọn kiểu dò → Dò ngay.</span>';
+  $("xsFetchBtn").addEventListener("click",doFetch);
+  $("xsMien").addEventListener("change",doFetch);
+  $("xsProvince").addEventListener("change",function(){
+    var i=+$("xsProvince").value||0;
+    if(xsData[i]){ fillFromPrizes(xsData[i].prizes);
+      $("xsStatus").innerHTML='<span style="color:var(--ok)">✓ Đã điền số của đài <b>'+esc(xsData[i].province)+'</b>. Chọn cột → Dò ngay.</span>'; }
   });
 
   /* ---------- NÚT ---------- */
