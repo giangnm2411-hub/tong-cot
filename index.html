@@ -9,14 +9,14 @@
     --bg:#f4f6fb; --card:#ffffff; --ink:#1a2230; --muted:#66738a;
     --line:#e2e8f2; --brand:#3f6fff; --brand-ink:#2b53d6;
     --ok:#12a150; --okbg:#e7f7ee; --warn:#c2410c; --warnbg:#fdeee2;
-    --accent:#f0f4ff; --shadow:0 8px 30px rgba(30,45,80,.08);
+    --accent:#f0f4ff; --red:#dc2626; --shadow:0 8px 30px rgba(30,45,80,.08);
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
       --bg:#0f141c; --card:#161d28; --ink:#e8edf6; --muted:#94a1b8;
       --line:#273041; --brand:#5c86ff; --brand-ink:#8aa8ff;
       --ok:#3ad07f; --okbg:#12331f; --warn:#f0a05a; --warnbg:#3a2513;
-      --accent:#1a2334; --shadow:0 8px 30px rgba(0,0,0,.35);
+      --accent:#1a2334; --red:#f87171; --shadow:0 8px 30px rgba(0,0,0,.35);
     }
   }
   *{box-sizing:border-box}
@@ -104,7 +104,9 @@
   .loto-tbl{border-collapse:collapse;width:100%;font-size:14px;margin-top:14px}
   .loto-tbl th,.loto-tbl td{border:1px solid var(--line);padding:8px 10px;text-align:center;font-variant-numeric:tabular-nums}
   .loto-tbl th{background:var(--accent);font-weight:700;font-size:13px}
-  .loto-tbl tr.hit td{background:var(--okbg);color:var(--ok);font-weight:700}
+  .loto-tbl tr.hit td{background:var(--okbg)}
+  .loto-tbl td.win{color:var(--red);font-weight:800}
+  .red{color:var(--red);font-weight:800}
   .loto-sum{margin-top:12px;font-weight:800;font-size:16px;color:var(--brand-ink)}
 </style>
 </head>
@@ -505,35 +507,40 @@
     var c=+$("lotoCol").value||0;
     var mode=(document.querySelector('input[name="lotomode"]:checked')||{}).value||"dd";
     var nums=[]; for(var r=0;r<data.length;r++){ nums.push({raw:data[r][c], n2:last2(data[r][c])}); }
-    var rowsHtml="", hitCount=0, note="";
+    var rowsHtml="", hitCount=0, noteHtml="";
+
+    function rowHtml(i,o,hit,kq){
+      var w=hit?' class="win"':'';
+      return '<tr class="'+(hit?"hit":"")+'"><td>'+(i+1)+'</td><td'+w+'>'+esc(String(o.raw))+'</td><td'+w+'>'+o.n2+'</td><td'+w+'>'+kq+'</td></tr>';
+    }
 
     if(mode==="dd"){
       var dau=last2Str($("lotoDau").value), duoi=last2Str($("lotoDuoi").value);
       if(!dau && !duoi){ $("lotoResult").innerHTML='<div class="hint" style="color:var(--warn)">⚠️ Nhập giải tám và/hoặc 2 số cuối đặc biệt trước.</div>'; return; }
-      note="Đầu (giải 8) = "+(dau||"—")+"   ·   Đuôi (2 số cuối ĐB) = "+(duoi||"—");
+      noteHtml='Đầu (giải 8) = <b class="red">'+esc(dau||"—")+'</b>   ·   Đuôi (2 số cuối ĐB) = <b class="red">'+esc(duoi||"—")+'</b>';
       nums.forEach(function(o,i){
         var hit=false, tags=[];
         if(dau && o.n2===dau) tags.push("đầu");
         if(duoi && o.n2===duoi) tags.push("đuôi");
         var kq="Trượt";
         if(tags.length){ hit=true; hitCount++; kq="TRÚNG ("+tags.join(", ")+")"; }
-        rowsHtml+='<tr class="'+(hit?"hit":"")+'"><td>'+(i+1)+'</td><td>'+esc(String(o.raw))+'</td><td>'+o.n2+'</td><td>'+kq+'</td></tr>';
+        rowsHtml+=rowHtml(i,o,hit,kq);
       });
     } else {
       var groups=String($("lotoAll").value).match(/\d{2,}/g)||[];
       if(!groups.length){ $("lotoResult").innerHTML='<div class="hint" style="color:var(--warn)">⚠️ Dán kết quả xổ số (các số của các giải) vào ô trước.</div>'; return; }
       var pool=groups.map(function(g){ return last2Str(g); });
-      note="Đã lấy 2 số cuối của "+pool.length+" giải để dò lô.";
+      noteHtml=esc("Đã lấy 2 số cuối của "+pool.length+" giải để dò lô.");
       nums.forEach(function(o,i){
         var cnt=0; for(var k=0;k<pool.length;k++){ if(pool[k]===o.n2) cnt++; }
         var hit=cnt>0; if(hit) hitCount++;
         var kq= hit ? ("TRÚNG × "+cnt) : "Trượt";
-        rowsHtml+='<tr class="'+(hit?"hit":"")+'"><td>'+(i+1)+'</td><td>'+esc(String(o.raw))+'</td><td>'+o.n2+'</td><td>'+kq+'</td></tr>';
+        rowsHtml+=rowHtml(i,o,hit,kq);
       });
     }
 
     var colLabel=$("lotoCol").options[$("lotoCol").selectedIndex].textContent;
-    var html='<div class="hint">'+esc(note)+'</div>';
+    var html='<div class="hint">'+noteHtml+'</div>';
     html+='<div class="table-scroll"><table class="loto-tbl"><tr><th>STT</th><th>Giá trị</th><th>2 số cuối</th><th>Kết quả</th></tr>'+rowsHtml+'</table></div>';
     html+='<div class="loto-sum">✅ Trúng '+hitCount+' / '+nums.length+' số ('+esc(colLabel)+')</div>';
     $("lotoResult").innerHTML=html;
