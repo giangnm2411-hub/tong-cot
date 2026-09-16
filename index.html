@@ -488,7 +488,7 @@
   function last2(v){ var s=String(Math.abs(Math.round(Number(v)||0))); s=s.slice(-2); while(s.length<2) s="0"+s; return s; }
   function last2Str(str){ var d=String(str).replace(/[^0-9]/g,""); if(!d) return null; d=d.slice(-2); while(d.length<2) d="0"+d; return d; }
 
-  function norm(s){ return String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]/g,""); }
+  function norm(s){ return String(s).toLowerCase().replace(/đ/g,"d").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]/g,""); }
   function colName(c){ return colNames[c]||("Cột "+(c+1)); }
 
   function setupLoto(){
