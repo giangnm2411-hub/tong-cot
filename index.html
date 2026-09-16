@@ -208,7 +208,7 @@
 <script>
 (function(){
   "use strict";
-  var LS_KEY="openrouter_key_v1", LS_MODEL="openrouter_model_v2";
+  var LS_KEY="openrouter_key_v1", LS_MODEL="openrouter_model_v3";
   var API="https://openrouter.ai/api/v1/chat/completions";
   var MODELS_URL="https://openrouter.ai/api/v1/models";
   /* Model TRẢ PHÍ đọc ảnh chính xác cao (thứ tự: tốt/đáng tiền nhất trước) */
@@ -273,24 +273,24 @@
         var saved=localStorage.getItem(LS_MODEL);
         sel.innerHTML="";
 
-        /* ---- Nhóm TRẢ PHÍ: đọc chính xác cao (cần nạp credit ở openrouter.ai) ---- */
-        var og1=document.createElement("optgroup"); og1.label="⭐ Trả phí — đọc chính xác cao";
-        PAID_MODELS.forEach(function(m){
-          var o=document.createElement("option"); o.value=m.id; o.textContent=m.label; og1.appendChild(o);
+        /* ---- Nhóm FREE (mặc định — dùng thử miễn phí) ---- */
+        var og1=document.createElement("optgroup"); og1.label="Miễn phí — dùng thử (có thể sai)";
+        list.forEach(function(m){
+          var o=document.createElement("option"); o.value=m.id; o.textContent=m.name||m.id; og1.appendChild(o);
         });
         sel.appendChild(og1);
 
-        /* ---- Nhóm FREE ---- */
-        var og2=document.createElement("optgroup"); og2.label="Miễn phí — có thể sai nhiều";
-        list.forEach(function(m){
-          var o=document.createElement("option"); o.value=m.id; o.textContent=m.name||m.id; og2.appendChild(o);
+        /* ---- Nhóm TRẢ PHÍ: đọc chính xác cao (cần nạp credit ở openrouter.ai) ---- */
+        var og2=document.createElement("optgroup"); og2.label="⭐ Trả phí — đọc chính xác cao (cần nạp credit)";
+        PAID_MODELS.forEach(function(m){
+          var o=document.createElement("option"); o.value=m.id; o.textContent=m.label; og2.appendChild(o);
         });
         sel.appendChild(og2);
 
-        var allIds=PAID_MODELS.map(function(m){return m.id;}).concat(list.map(function(m){return m.id;}));
+        var allIds=list.map(function(m){return m.id;}).concat(PAID_MODELS.map(function(m){return m.id;}));
         if(saved && allIds.indexOf(saved)>=0) sel.value=saved;
-        else { sel.value=PAID_MODELS[0].id; try{localStorage.setItem(LS_MODEL,sel.value);}catch(e){} }
-        $("modelHint").innerHTML="Mặc định dùng model <b>trả phí</b> cho chính xác cao (cần nạp một ít credit ở openrouter.ai). Muốn miễn phí thì chọn nhóm bên dưới ("+list.length+" model).";
+        else { sel.value=(list[0]?list[0].id:PAID_MODELS[0].id); try{localStorage.setItem(LS_MODEL,sel.value);}catch(e){} }
+        $("modelHint").innerHTML="Đang dùng model <b>miễn phí</b> ("+list.length+" model, có thể sai). Khi nào nạp credit ở openrouter.ai thì chọn nhóm <b>⭐ Trả phí</b> bên dưới cho chính xác cao.";
       })
       .catch(function(){
         /* Mạng lỗi khi lấy danh sách free -> vẫn cho dùng model trả phí */
