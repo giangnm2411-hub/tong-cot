@@ -211,6 +211,14 @@
   var LS_KEY="openrouter_key_v1", LS_MODEL="openrouter_model_v1";
   var API="https://openrouter.ai/api/v1/chat/completions";
   var MODELS_URL="https://openrouter.ai/api/v1/models";
+  /* Model TRẢ PHÍ đọc ảnh chính xác cao (thứ tự: tốt/đáng tiền nhất trước) */
+  var PAID_MODELS=[
+    {id:"google/gemini-3.8-flash",       label:"⭐ Gemini 3.8 Flash — chính xác nhất (trả phí)"},
+    {id:"google/gemini-3.5-flash-lite",  label:"Gemini 3.5 Flash Lite — rẻ hơn (trả phí)"},
+    {id:"openai/gpt-5",                  label:"GPT-5 — của OpenAI (trả phí)"},
+    {id:"openai/gpt-5.6-luna",           label:"GPT-5.6 Luna — rẻ nhất (trả phí)"}
+  ];
+  function isPaidModel(id){ return !!id && id.indexOf(":free")<0; }
   var $=function(id){return document.getElementById(id)};
   var data=[], colCount=0, colNames=[], colOn=[];
 
@@ -262,24 +270,40 @@
           var d=score(a.id)-score(b.id); return d!==0?d:a.id.localeCompare(b.id);
         });
         var sel=$("modelSel");
-        if(!list.length){
-          sel.innerHTML='<option value="">Không tìm thấy model free đọc ảnh</option>';
-          $("modelHint").textContent="Chưa lấy được model free. Bấm ↻ thử lại, hoặc kiểm tra key.";
-          return;
-        }
         var saved=localStorage.getItem(LS_MODEL);
         sel.innerHTML="";
-        list.forEach(function(m){
-          var o=document.createElement("option");
-          o.value=m.id; o.textContent=m.name||m.id;
-          sel.appendChild(o);
+
+        /* ---- Nhóm TRẢ PHÍ: đọc chính xác cao (cần nạp credit ở openrouter.ai) ---- */
+        var og1=document.createElement("optgroup"); og1.label="⭐ Trả phí — đọc chính xác cao";
+        PAID_MODELS.forEach(function(m){
+          var o=document.createElement("option"); o.value=m.id; o.textContent=m.label; og1.appendChild(o);
         });
-        if(saved && list.some(function(m){return m.id===saved;})) sel.value=saved;
-        else { try{localStorage.setItem(LS_MODEL,sel.value);}catch(e){} }
-        $("modelHint").textContent="Có "+list.length+" model free đọc ảnh. Nếu 1 model lỗi/bận, đổi sang model khác trong danh sách.";
+        sel.appendChild(og1);
+
+        /* ---- Nhóm FREE ---- */
+        var og2=document.createElement("optgroup"); og2.label="Miễn phí — có thể sai nhiều";
+        list.forEach(function(m){
+          var o=document.createElement("option"); o.value=m.id; o.textContent=m.name||m.id; og2.appendChild(o);
+        });
+        sel.appendChild(og2);
+
+        var allIds=PAID_MODELS.map(function(m){return m.id;}).concat(list.map(function(m){return m.id;}));
+        if(saved && allIds.indexOf(saved)>=0) sel.value=saved;
+        else { sel.value=PAID_MODELS[0].id; try{localStorage.setItem(LS_MODEL,sel.value);}catch(e){} }
+        $("modelHint").innerHTML="Mặc định dùng model <b>trả phí</b> cho chính xác cao (cần nạp một ít credit ở openrouter.ai). Muốn miễn phí thì chọn nhóm bên dưới ("+list.length+" model).";
       })
       .catch(function(){
-        $("modelHint").textContent="Không tải được danh sách model (mạng?). Bấm ↻ để thử lại.";
+        /* Mạng lỗi khi lấy danh sách free -> vẫn cho dùng model trả phí */
+        var sel=$("modelSel");
+        if(!sel.querySelector('option[value]')){
+          sel.innerHTML="";
+          var og=document.createElement("optgroup"); og.label="⭐ Trả phí — đọc chính xác cao";
+          PAID_MODELS.forEach(function(m){ var o=document.createElement("option"); o.value=m.id; o.textContent=m.label; og.appendChild(o); });
+          sel.appendChild(og);
+          var saved=localStorage.getItem(LS_MODEL);
+          sel.value=(saved&&PAID_MODELS.some(function(m){return m.id===saved;}))?saved:PAID_MODELS[0].id;
+        }
+        $("modelHint").innerHTML="Chưa tải được danh sách model <b>miễn phí</b> (mạng?). Đang dùng model trả phí. Bấm ↻ để tải lại danh sách free.";
       });
   }
 
@@ -306,13 +330,17 @@
     function fallbackRaw(){ var rd=new FileReader(); rd.onload=function(){ $("preview").innerHTML='<img src="'+rd.result+'" alt="ảnh">'; callWithFallback(rd.result); }; rd.readAsDataURL(file); }
     var url=URL.createObjectURL(file), img=new Image();
     img.onload=function(){
-      var max=1100, w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+      /* Model trả phí đọc chính xác hơn khi ảnh nét -> để ảnh to & rõ hơn */
+      var paid=(($("modelSel").value||"").indexOf(":free")<0);
+      var max=paid?2000:1200, q=paid?0.92:0.82;
+      var w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
       var sc=Math.min(1, max/Math.max(w, h||1));
       var cw=Math.max(1,Math.round(w*sc)), ch=Math.max(1,Math.round(h*sc));
       var cv=document.createElement("canvas"); cv.width=cw; cv.height=ch;
       try{
-        cv.getContext("2d").drawImage(img,0,0,cw,ch);
-        var dataUrl=cv.toDataURL("image/jpeg",0.82);
+        var ctx=cv.getContext("2d"); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality="high";
+        ctx.drawImage(img,0,0,cw,ch);
+        var dataUrl=cv.toDataURL("image/jpeg",q);
         URL.revokeObjectURL(url);
         $("preview").innerHTML='<img src="'+dataUrl+'" alt="ảnh đã bỏ vào">';
         callWithFallback(dataUrl);
@@ -325,15 +353,39 @@
   function sleep(ms){ return new Promise(function(res){ setTimeout(res,ms); }); }
   function shortName(id){ var p=String(id).split("/"); return p[p.length-1].replace(":free",""); }
 
-  /* Danh sách model theo thứ tự đã sắp (model nhanh trước) */
+  /* Chỉ lấy các model FREE (để chạy đua song song) — bỏ qua model trả phí */
   function orderedModels(){
     var sel=$("modelSel"), all=[];
-    Array.prototype.forEach.call(sel.options,function(o){ if(o.value) all.push(o.value); });
+    Array.prototype.forEach.call(sel.options,function(o){ if(o.value && !isPaidModel(o.value)) all.push(o.value); });
     return all;
   }
 
-  /* ---------- CHẠY SONG SONG NHIỀU MODEL, LẤY CÁI TRẢ NHANH NHẤT ---------- */
+  /* Lỗi hết tiền / cần nạp credit ở OpenRouter */
+  function isCreditErr(e){
+    return e && (e.status===402 || /insufficient|credit|payment required|quota|add more|top ?up/i.test(String(e.message||"")));
+  }
+
+  /* ---------- ĐỌC ẢNH ---------- */
   function callWithFallback(dataUrl){
+    var chosen=$("modelSel").value;
+
+    /* === MODEL TRẢ PHÍ: gọi thẳng 1 model (đáng tin, chính xác cao) === */
+    if(isPaidModel(chosen)){
+      $("resultCard").classList.add("hidden");
+      status('<span class="spin"></span> Đang đọc ảnh bằng '+shortName(chosen)+' (trả phí)…');
+      callOne(dataUrl,chosen).then(function(rows){
+        if(rows&&rows.length){ buildTable(rows); clearStatus(); }
+        else status("❌ Model chưa đọc ra số. Thử lại, hoặc đổi model.","err");
+      }).catch(function(e){
+        if(isCreditErr(e)){
+          status("❌ Tài khoản OpenRouter chưa đủ tiền để dùng model trả phí. Vào <b>openrouter.ai → Settings → Credits</b> nạp một ít (vài chục nghìn là dùng được rất lâu), hoặc chọn một model <b>Miễn phí</b> trong danh sách.","err");
+        } else if(e&&e.fatal){ status("❌ "+e.message,"err"); }
+        else { status("❌ "+(e&&e.message||"lỗi")+" — thử lại hoặc đổi model.","err"); }
+      });
+      return;
+    }
+
+    /* === MODEL FREE: chạy đua song song, lấy cái trả nhanh nhất === */
     var models=orderedModels();
     if(!models.length){ status("⚠️ Chưa có model. Bấm ↻ Tải model free.","err"); return; }
     $("resultCard").classList.add("hidden");
@@ -365,11 +417,13 @@
   /* Gọi 1 model; trả về rows hoặc reject Error (có .fatal nếu lỗi key) */
   function callOne(dataUrl,model){
     var prompt=
-      "Đọc bảng số trong ảnh. Mỗi dòng trong ảnh là một hàng; trên mỗi hàng các số ngăn cách bởi dấu gạch, "+
-      "khoảng trắng hoặc dấu phẩy. "+
+      "Đây là bảng ghi số đánh đề/lô viết tay của người Việt. Hãy đọc THẬT CẨN THẬN từng chữ số. "+
+      "Mỗi dòng trong ảnh là một hàng; trên mỗi hàng các số ngăn cách bởi dấu gạch, khoảng trắng hoặc dấu phẩy. "+
+      "Đa số con số có 2 chữ số (ví dụ 44, 88), một số ít có 1 hoặc 3 chữ số. "+
+      "Đọc kỹ để không nhầm các chữ số dễ lẫn khi viết tay: 0-6-8, 1-7, 4-9, 3-5-8, 2-7. "+
+      "Nếu một ô mờ/khó đọc, hãy chọn con số HỢP LÝ NHẤT theo nét chữ, không được bỏ trống. "+
       "KÝ HIỆU LẶP: nếu ở một cột, dưới một con số có GẠCH DỌC '|' (dấu nháy ditto) kéo dài qua vài dòng, "+
-      "thì con số phía trên được LẶP LẠI cho từng dòng đó — hãy điền lại đúng con số đó cho các dòng đó, "+
-      "hãy điền lại đúng con số đó cho các dòng đó. "+
+      "thì con số phía trên được LẶP LẠI cho từng dòng đó — hãy điền lại đúng con số đó cho các dòng đó. "+
       "TUYỆT ĐỐI KHÔNG dùng số 0 và KHÔNG để ô trống — bảng này KHÔNG có số 0. "+
       "Ô nào không có chữ số riêng (chỉ có gạch dọc / để trống) thì LUÔN lặp lại con số ở ô ngay phía trên cùng cột. "+
       "Trả về DUY NHẤT một JSON, không kèm giải thích, không markdown, dạng: "+
@@ -384,7 +438,8 @@
         "Content-Type":"application/json","Authorization":"Bearer "+getKey(),"X-Title":"Tinh tong cot"
       },body:JSON.stringify(body)};
     if(ctl) opt.signal=ctl.signal;
-    var to=ctl?setTimeout(function(){ try{ctl.abort();}catch(e){} },15000):null;
+    var TMO=isPaidModel(model)?35000:15000;   /* model trả phí + ảnh nét cần lâu hơn chút */
+    var to=ctl?setTimeout(function(){ try{ctl.abort();}catch(e){} },TMO):null;
     return fetch(API,opt)
     .then(function(r){ if(to)clearTimeout(to); return r.json().then(function(j){ return {ok:r.ok,status:r.status,j:j}; }); })
     .then(function(res){
@@ -392,7 +447,7 @@
         var msg=(res.j&&res.j.error&&(res.j.error.message||res.j.error))||("Lỗi HTTP "+res.status);
         if(typeof msg==="object") msg=JSON.stringify(msg);
         if(res.status===401){ var e=new Error("API key không hợp lệ. Kiểm tra lại key OpenRouter ở phần Cài đặt."); e.fatal=true; throw e; }
-        throw new Error(msg);
+        var er=new Error(msg); er.status=res.status; throw er;
       }
       var txt="";
       try{ txt=res.j.choices[0].message.content; if(Array.isArray(txt)){ txt=txt.map(function(p){return p.text||"";}).join(""); } }
