@@ -92,6 +92,20 @@
   .flex-between{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
   .modelrow{margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .modelrow select{flex:1;min-width:220px}
+  .loto-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .loto-row select{width:auto;min-width:150px}
+  .loto-modes{display:flex;flex-direction:column;gap:9px;font-size:14px;margin-bottom:12px}
+  .loto-modes label{display:flex;align-items:flex-start;gap:8px;cursor:pointer;line-height:1.4}
+  .loto-modes input{margin-top:3px}
+  .loto-inputs{display:flex;gap:12px;flex-wrap:wrap}
+  .loto-inputs > div{flex:1;min-width:150px}
+  textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:14px;font-family:inherit;resize:vertical}
+  textarea:focus{outline:none;border-color:var(--brand)}
+  .loto-tbl{border-collapse:collapse;width:100%;font-size:14px;margin-top:14px}
+  .loto-tbl th,.loto-tbl td{border:1px solid var(--line);padding:8px 10px;text-align:center;font-variant-numeric:tabular-nums}
+  .loto-tbl th{background:var(--accent);font-weight:700;font-size:13px}
+  .loto-tbl tr.hit td{background:var(--okbg);color:var(--ok);font-weight:700}
+  .loto-sum{margin-top:12px;font-weight:800;font-size:16px;color:var(--brand-ink)}
 </style>
 </head>
 <body>
@@ -156,6 +170,31 @@
     <p class="hint">Bấm vào ô số để sửa nếu đọc sai — tổng tự cập nhật. Bỏ tick ở đầu cột để ẩn khỏi tổng gộp.</p>
     <div class="table-scroll"><table id="tbl"></table></div>
     <div class="summary" id="summary"></div>
+  </div>
+
+  <!-- DÒ VÉ SỐ -->
+  <div class="card hidden" id="lotoCard">
+    <h2>🎯 Dò vé số</h2>
+    <div class="loto-row">
+      <label class="fld" style="margin:0">Dò theo cột:</label>
+      <select id="lotoCol"></select>
+    </div>
+    <div class="loto-modes">
+      <label><input type="radio" name="lotomode" value="dd" checked> <span>Đầu–đuôi: so với <b>giải tám</b> và <b>2 số cuối giải đặc biệt</b></span></label>
+      <label><input type="radio" name="lotomode" value="lo"> <span>Lô: dò <b>2 số cuối của tất cả các giải</b></span></label>
+    </div>
+    <div id="ddInputs" class="loto-inputs">
+      <div><label class="fld">Giải tám (đầu)</label><input type="text" id="lotoDau" inputmode="numeric" placeholder="vd 12" maxlength="3"></div>
+      <div><label class="fld">2 số cuối Đặc biệt (đuôi)</label><input type="text" id="lotoDuoi" inputmode="numeric" placeholder="vd 56" maxlength="3"></div>
+    </div>
+    <div id="loInputs" class="loto-inputs hidden">
+      <div style="flex:1 1 100%">
+        <label class="fld">Dán kết quả xổ số — các số của mọi giải (cách nhau bởi dấu cách/xuống dòng). App tự lấy 2 số cuối mỗi giải.</label>
+        <textarea id="lotoAll" rows="4" placeholder="vd:&#10;Đặc biệt 123456&#10;Nhất 78901&#10;Nhì 23456 34567&#10;... (dán cả kết quả cũng được)"></textarea>
+      </div>
+    </div>
+    <div style="margin-top:12px"><button class="btn-primary" id="lotoBtn">Dò ngay</button></div>
+    <div id="lotoResult"></div>
   </div>
 </div>
 
@@ -378,6 +417,7 @@
     }
     render();
     $("resultCard").classList.remove("hidden");
+    setupLoto();
     $("resultCard").scrollIntoView({behavior:"smooth",block:"start"});
   }
 
@@ -432,6 +472,67 @@
     if(!anyOn) html+='<div class="hint">Chưa chọn cột nào để cộng gộp — tick vào đầu cột.</div>';
     $("summary").innerHTML=html;
   }
+
+  /* ---------- DÒ VÉ SỐ ---------- */
+  function last2(v){ var s=String(Math.abs(Math.round(Number(v)||0))); s=s.slice(-2); while(s.length<2) s="0"+s; return s; }
+  function last2Str(str){ var d=String(str).replace(/[^0-9]/g,""); if(!d) return null; d=d.slice(-2); while(d.length<2) d="0"+d; return d; }
+
+  function setupLoto(){
+    var sel=$("lotoCol"); sel.innerHTML="";
+    for(var c=0;c<colCount;c++){
+      var o=document.createElement("option"); o.value=c; o.textContent=colNames[c]||("Cột "+(c+1)); sel.appendChild(o);
+    }
+    if(colCount>=2) sel.value="1"; // mặc định cột 2
+    $("lotoResult").innerHTML="";
+    $("lotoCard").classList.remove("hidden");
+  }
+
+  Array.prototype.forEach.call(document.getElementsByName("lotomode"),function(r){
+    r.addEventListener("change",function(){
+      var lo=(document.querySelector('input[name="lotomode"]:checked')||{}).value==="lo";
+      $("loInputs").classList.toggle("hidden",!lo);
+      $("ddInputs").classList.toggle("hidden",lo);
+    });
+  });
+
+  $("lotoBtn").addEventListener("click",function(){
+    if(!colCount) return;
+    var c=+$("lotoCol").value||0;
+    var mode=(document.querySelector('input[name="lotomode"]:checked')||{}).value||"dd";
+    var nums=[]; for(var r=0;r<data.length;r++){ nums.push({raw:data[r][c], n2:last2(data[r][c])}); }
+    var rowsHtml="", hitCount=0, note="";
+
+    if(mode==="dd"){
+      var dau=last2Str($("lotoDau").value), duoi=last2Str($("lotoDuoi").value);
+      if(!dau && !duoi){ $("lotoResult").innerHTML='<div class="hint" style="color:var(--warn)">⚠️ Nhập giải tám và/hoặc 2 số cuối đặc biệt trước.</div>'; return; }
+      note="Đầu (giải 8) = "+(dau||"—")+"   ·   Đuôi (2 số cuối ĐB) = "+(duoi||"—");
+      nums.forEach(function(o,i){
+        var hit=false, tags=[];
+        if(dau && o.n2===dau) tags.push("đầu");
+        if(duoi && o.n2===duoi) tags.push("đuôi");
+        var kq="Trượt";
+        if(tags.length){ hit=true; hitCount++; kq="TRÚNG ("+tags.join(", ")+")"; }
+        rowsHtml+='<tr class="'+(hit?"hit":"")+'"><td>'+(i+1)+'</td><td>'+esc(String(o.raw))+'</td><td>'+o.n2+'</td><td>'+kq+'</td></tr>';
+      });
+    } else {
+      var groups=String($("lotoAll").value).match(/\d{2,}/g)||[];
+      if(!groups.length){ $("lotoResult").innerHTML='<div class="hint" style="color:var(--warn)">⚠️ Dán kết quả xổ số (các số của các giải) vào ô trước.</div>'; return; }
+      var pool=groups.map(function(g){ return last2Str(g); });
+      note="Đã lấy 2 số cuối của "+pool.length+" giải để dò lô.";
+      nums.forEach(function(o,i){
+        var cnt=0; for(var k=0;k<pool.length;k++){ if(pool[k]===o.n2) cnt++; }
+        var hit=cnt>0; if(hit) hitCount++;
+        var kq= hit ? ("TRÚNG × "+cnt) : "Trượt";
+        rowsHtml+='<tr class="'+(hit?"hit":"")+'"><td>'+(i+1)+'</td><td>'+esc(String(o.raw))+'</td><td>'+o.n2+'</td><td>'+kq+'</td></tr>';
+      });
+    }
+
+    var colLabel=$("lotoCol").options[$("lotoCol").selectedIndex].textContent;
+    var html='<div class="hint">'+esc(note)+'</div>';
+    html+='<div class="table-scroll"><table class="loto-tbl"><tr><th>STT</th><th>Giá trị</th><th>2 số cuối</th><th>Kết quả</th></tr>'+rowsHtml+'</table></div>';
+    html+='<div class="loto-sum">✅ Trúng '+hitCount+' / '+nums.length+' số ('+esc(colLabel)+')</div>';
+    $("lotoResult").innerHTML=html;
+  });
 
   /* ---------- NÚT ---------- */
   $("allBtn").addEventListener("click",function(){
