@@ -189,10 +189,15 @@
     </div>
     <div id="loInputs" class="loto-inputs hidden">
       <div style="flex:1 1 100%">
-        <label class="fld">Dán kết quả xổ số — các số của mọi giải (cách nhau bởi dấu cách/xuống dòng). App tự lấy 2 số cuối mỗi giải.</label>
+        <label class="fld">Các số của mọi giải (cách nhau bởi dấu cách/xuống dòng). App tự lấy 2 số cuối mỗi giải.</label>
         <textarea id="lotoAll" rows="4" placeholder="vd:&#10;Đặc biệt 123456&#10;Nhất 78901&#10;Nhì 23456 34567&#10;... (dán cả kết quả cũng được)"></textarea>
       </div>
     </div>
+    <div class="loto-row" style="margin:12px 0 0">
+      <button class="btn-ghost btn-sm" id="lotoImgBtn">📷 Tự lấy số từ ảnh kết quả xổ số</button>
+      <input type="file" id="lotoImg" accept="image/*" class="hidden">
+    </div>
+    <div class="hint" id="lotoImgStatus"></div>
     <div style="margin-top:12px"><button class="btn-primary" id="lotoBtn">Dò ngay</button></div>
     <div id="lotoResult"></div>
   </div>
@@ -533,6 +538,67 @@
     html+='<div class="loto-sum">✅ Trúng '+hitCount+' / '+nums.length+' số ('+esc(colLabel)+')</div>';
     $("lotoResult").innerHTML=html;
   });
+
+  /* ---- Tự lấy số từ ảnh kết quả xổ số ---- */
+  $("lotoImgBtn").addEventListener("click",function(){ $("lotoImg").click(); });
+  $("lotoImg").addEventListener("change",function(e){ if(e.target.files[0]) readLottery(e.target.files[0]); });
+
+  function readLottery(file){
+    if(!getKey()||!$("modelSel").value){ $("lotoImgStatus").innerHTML='<span style="color:var(--warn)">⚠️ Cần nhập key + model ở phần Cài đặt trước.</span>'; return; }
+    var reader=new FileReader();
+    reader.onload=function(){ lotteryFromImage(reader.result); };
+    reader.readAsDataURL(file);
+  }
+
+  function callJson(dataUrl,model,prompt){
+    var body={model:model,temperature:0,messages:[{role:"user",content:[
+      {type:"text",text:prompt},{type:"image_url",image_url:{url:dataUrl}}
+    ]}]};
+    return fetch(API,{method:"POST",headers:{
+        "Content-Type":"application/json","Authorization":"Bearer "+getKey(),"X-Title":"Tinh tong cot"
+      },body:JSON.stringify(body)})
+    .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,status:r.status,j:j}; }); })
+    .then(function(res){
+      if(!res.ok){ var e=new Error("Lỗi HTTP "+res.status); if(res.status===401){ e.message="API key không hợp lệ."; e.fatal=true; } throw e; }
+      var txt=""; try{ txt=res.j.choices[0].message.content; if(Array.isArray(txt)) txt=txt.map(function(p){return p.text||"";}).join(""); }catch(e){ throw new Error("model không trả nội dung"); }
+      txt=String(txt).replace(/```json/gi,"").replace(/```/g,"").trim();
+      var obj=null; try{ obj=JSON.parse(txt); }catch(e){}
+      if(!obj){ var a=txt.indexOf("{"), b=txt.lastIndexOf("}"); if(a>=0&&b>a){ try{ obj=JSON.parse(txt.slice(a,b+1)); }catch(e){} } }
+      if(!obj) throw new Error("đọc chưa ra");
+      return obj;
+    });
+  }
+
+  function lotteryFromImage(dataUrl){
+    var models=orderedModels(); if(!models.length){ $("lotoImgStatus").innerHTML='<span style="color:var(--warn)">Chưa có model.</span>'; return; }
+    var maxTry=Math.min(models.length,8);
+    var prompt=
+      "Đây là ảnh KẾT QUẢ XỔ SỐ. Trích thông tin và trả về DUY NHẤT một JSON, không giải thích, dạng: "+
+      '{"giai8":"12","dacbiet":"123456","all":["123456","78901","2345"]}. '+
+      "giai8 = con số của GIẢI TÁM (2 chữ số). dacbiet = con số GIẢI ĐẶC BIỆT (đầy đủ). "+
+      "all = MẢNG chứa TẤT CẢ các số trúng của MỌI giải (đặc biệt, nhất, nhì, ba, tư, năm, sáu, bảy, tám), "+
+      "mỗi con số là một phần tử chuỗi. Chỉ trả JSON.";
+    (async function(){
+      for(var i=0;i<maxTry;i++){
+        var m=models[i];
+        $("lotoImgStatus").innerHTML='<span class="spin"></span> Đang đọc kết quả xổ số… '+shortName(m)+' — '+(i+1)+'/'+maxTry;
+        try{
+          var o=await callJson(dataUrl,m,prompt);
+          if(o && (o.giai8!=null || o.dacbiet!=null || (o.all&&o.all.length))){ applyLottery(o); return; }
+        }catch(e){ if(e&&e.fatal){ $("lotoImgStatus").innerHTML='<span style="color:var(--warn)">❌ '+esc(e.message)+'</span>'; return; } }
+        if(i<maxTry-1) await sleep(1000);
+      }
+      $("lotoImgStatus").innerHTML='<span style="color:var(--warn)">❌ Chưa đọc được kết quả. Thử ảnh rõ hơn hoặc nhập tay.</span>';
+    })();
+  }
+
+  function applyLottery(o){
+    var msg=[];
+    if(o.giai8!=null && String(o.giai8).replace(/[^0-9]/g,"")){ $("lotoDau").value=last2Str(String(o.giai8))||""; msg.push("Giải 8 = "+$("lotoDau").value); }
+    if(o.dacbiet!=null && String(o.dacbiet).replace(/[^0-9]/g,"")){ $("lotoDuoi").value=last2Str(String(o.dacbiet))||""; msg.push("Đuôi ĐB = "+$("lotoDuoi").value); }
+    if(Array.isArray(o.all) && o.all.length){ $("lotoAll").value=o.all.join(" "); msg.push(o.all.length+" số cho lô"); }
+    $("lotoImgStatus").innerHTML='<span style="color:var(--ok)">✓ Đã tự lấy: '+esc(msg.join("  ·  "))+'. Chọn kiểu dò rồi bấm <b>Dò ngay</b>.</span>';
+  }
 
   /* ---------- NÚT ---------- */
   $("allBtn").addEventListener("click",function(){
