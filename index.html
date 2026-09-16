@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tính tổng theo cột từ ảnh</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#ffffff; --ink:#1a2230; --muted:#66738a;
+    --line:#e2e8f2; --brand:#3f6fff; --brand-ink:#2b53d6;
+    --ok:#12a150; --okbg:#e7f7ee; --warn:#c2410c; --warnbg:#fdeee2;
+    --accent:#f0f4ff; --shadow:0 8px 30px rgba(30,45,80,.08);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f141c; --card:#161d28; --ink:#e8edf6; --muted:#94a1b8;
+      --line:#273041; --brand:#5c86ff; --brand-ink:#8aa8ff;
+      --ok:#3ad07f; --okbg:#12331f; --warn:#f0a05a; --warnbg:#3a2513;
+      --accent:#1a2334; --shadow:0 8px 30px rgba(0,0,0,.35);
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:24px 16px 64px}
+  header h1{font-size:22px;margin:0 0 4px}
+  header p{margin:0;color:var(--muted);font-size:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:18px;margin-top:16px;box-shadow:var(--shadow)}
+  .card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .badge{font-size:11px;font-weight:700;background:var(--accent);color:var(--brand-ink);
+    padding:2px 8px;border-radius:999px}
+  label.fld{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  input[type=password],input[type=text],select{width:100%;padding:11px 12px;border:1px solid var(--line);
+    border-radius:10px;background:var(--bg);color:var(--ink);font-size:14px;font-family:inherit}
+  input:focus,select:focus{outline:none;border-color:var(--brand)}
+  button{cursor:pointer;border:none;border-radius:10px;font-size:14px;font-weight:600;
+    padding:11px 16px;font-family:inherit;transition:filter .15s,transform .05s}
+  button:active{transform:translateY(1px)}
+  .btn-primary{background:var(--brand);color:#fff}
+  .btn-primary:hover{filter:brightness(1.06)}
+  .btn-ghost{background:transparent;color:var(--brand-ink);border:1px solid var(--line)}
+  .btn-ghost:hover{background:var(--accent)}
+  .btn-sm{padding:7px 12px;font-size:13px}
+  .drop{border:2px dashed var(--line);border-radius:14px;padding:34px 18px;text-align:center;
+    color:var(--muted);cursor:pointer;transition:.15s;background:var(--bg)}
+  .drop:hover,.drop.over{border-color:var(--brand);background:var(--accent);color:var(--brand-ink)}
+  .drop strong{color:var(--ink);display:block;font-size:15px;margin-bottom:4px}
+  .drop.over strong{color:var(--brand-ink)}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px}
+  .preview{margin-top:14px;text-align:center}
+  .preview img{max-width:100%;max-height:260px;border-radius:12px;border:1px solid var(--line)}
+  .status{margin-top:14px;padding:12px 14px;border-radius:10px;font-size:14px;display:none}
+  .status.show{display:block}
+  .status.load{background:var(--accent);color:var(--brand-ink)}
+  .status.err{background:var(--warnbg);color:var(--warn)}
+  .spin{display:inline-block;width:15px;height:15px;border:2px solid currentColor;border-right-color:transparent;
+    border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:7px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  table{border-collapse:collapse;width:100%;font-size:14px;margin-top:4px}
+  th,td{border:1px solid var(--line);padding:0;text-align:center}
+  th{background:var(--accent);font-weight:700;padding:8px 6px;font-size:13px}
+  th .colname{width:78px;text-align:center;border:none;background:transparent;font-weight:700;
+    color:var(--ink);padding:3px;font-size:13px}
+  th label{display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
+  td input.cell{width:100%;border:none;background:transparent;color:var(--ink);text-align:center;
+    padding:9px 4px;font-size:14px;font-family:inherit}
+  td input.cell:focus{outline:2px solid var(--brand);outline-offset:-2px;border-radius:4px}
+  tr.total-row td{background:var(--okbg);font-weight:800;color:var(--ok);padding:10px 4px;font-size:15px}
+  tr.total-row td.lbl{color:var(--muted);font-weight:700}
+  .off-col{opacity:.32}
+  .rownum{color:var(--muted);font-size:12px;width:34px;background:var(--bg)}
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .summary{margin-top:16px;background:var(--accent);border-radius:12px;padding:14px 16px}
+  .summary .line{display:flex;justify-content:space-between;gap:12px;padding:5px 0;font-size:14px;
+    border-bottom:1px dashed var(--line)}
+  .summary .line:last-child{border-bottom:none}
+  .summary .grand{font-size:19px;font-weight:800;color:var(--brand-ink);padding-top:10px;margin-top:4px;
+    border-top:2px solid var(--line)}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  details.guide{margin-top:10px}
+  details.guide summary{cursor:pointer;font-size:13px;color:var(--brand-ink);font-weight:600}
+  details.guide ol{font-size:13px;color:var(--muted);padding-left:20px;line-height:1.7}
+  details.guide a{color:var(--brand-ink)}
+  .keyrow{display:flex;gap:8px}
+  .keyrow input{flex:1}
+  .saved{font-size:12px;color:var(--ok);margin-top:6px;display:none}
+  .saved.show{display:block}
+  .muted{color:var(--muted)}
+  .hidden{display:none}
+  .flex-between{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .modelrow{margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .modelrow select{flex:1;min-width:220px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📸 Tính tổng theo cột từ ảnh</h1>
+    <p>Bỏ ảnh vào — AI tự đọc số và tính tổng từng cột. Bạn có thể ẩn cột hoặc cộng gộp các cột đã chọn.</p>
+  </header>
+
+  <!-- CÀI ĐẶT -->
+  <div class="card" id="setupCard">
+    <div class="flex-between">
+      <h2>🔑 Cài đặt <span class="badge">chỉ làm 1 lần</span></h2>
+      <button class="btn-ghost btn-sm" id="editKeyBtn" style="display:none">Đổi key</button>
+    </div>
+    <div id="keyForm">
+      <label class="fld">OpenRouter API key</label>
+      <div class="keyrow">
+        <input type="password" id="apiKey" placeholder="Dán API key (sk-or-...)" autocomplete="off">
+        <button class="btn-primary" id="saveKeyBtn">Lưu</button>
+      </div>
+      <div class="saved" id="savedMsg">✓ Đã lưu key vào trình duyệt của máy này.</div>
+      <details class="guide">
+        <summary>Chưa có key? Lấy miễn phí, không cần thẻ »</summary>
+        <ol>
+          <li>Mở <a href="https://openrouter.ai/sign-up" target="_blank" rel="noopener">openrouter.ai</a> → đăng ký bằng Google hoặc email (miễn phí, không cần thẻ).</li>
+          <li>Vào <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">Settings → API Keys</a> → bấm <b>Create Key</b>.</li>
+          <li>Sao chép chuỗi <b>sk-or-…</b> (chỉ hiện 1 lần!) rồi dán vào ô trên, bấm Lưu.</li>
+        </ol>
+        <p class="hint">Gói free: ~50 lượt/ngày, 20 lượt/phút — thừa cho việc cộng cột. Key lưu ngay trên máy bạn.</p>
+      </details>
+    </div>
+    <div class="modelrow" id="modelRow">
+      <span class="muted" style="font-size:13px;white-space:nowrap">Model đọc ảnh:</span>
+      <select id="modelSel"><option>Nhập key rồi bấm Tải model…</option></select>
+      <button class="btn-ghost btn-sm" id="reloadModels">↻ Tải model free</button>
+    </div>
+    <div class="hint" id="modelHint"></div>
+  </div>
+
+  <!-- BỎ ẢNH -->
+  <div class="card">
+    <h2>🖼️ Bỏ ảnh vào</h2>
+    <div class="drop" id="drop" tabindex="0">
+      <strong>Kéo–thả ảnh, dán (Ctrl/⌘+V), hoặc bấm để chọn</strong>
+      Ảnh chụp bảng số viết tay hoặc in đều được
+    </div>
+    <input type="file" id="file" accept="image/*" class="hidden">
+    <div class="preview" id="preview"></div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <!-- KẾT QUẢ -->
+  <div class="card hidden" id="resultCard">
+    <div class="flex-between">
+      <h2>🧮 Kết quả</h2>
+      <div class="toolbar" style="margin:0">
+        <button class="btn-ghost btn-sm" id="allBtn">Chọn tất cả</button>
+        <button class="btn-ghost btn-sm" id="copyBtn">Sao chép</button>
+      </div>
+    </div>
+    <p class="hint">Bấm vào ô số để sửa nếu đọc sai — tổng tự cập nhật. Bỏ tick ở đầu cột để ẩn khỏi tổng gộp.</p>
+    <div class="table-scroll"><table id="tbl"></table></div>
+    <div class="summary" id="summary"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var LS_KEY="openrouter_key_v1", LS_MODEL="openrouter_model_v1";
+  var API="https://openrouter.ai/api/v1/chat/completions";
+  var MODELS_URL="https://openrouter.ai/api/v1/models";
+  var $=function(id){return document.getElementById(id)};
+  var data=[], colCount=0, colNames=[], colOn=[];
+
+  /* ---------- KEY ---------- */
+  function loadKey(){
+    var k=localStorage.getItem(LS_KEY)||"";
+    if(k){ showKeySaved(); loadModels(); }
+  }
+  function showKeySaved(){
+    $("keyForm").style.display="none";
+    $("editKeyBtn").style.display="inline-block";
+  }
+  $("saveKeyBtn").addEventListener("click",function(){
+    var k=$("apiKey").value.trim();
+    if(!k){ $("apiKey").focus(); return; }
+    try{ localStorage.setItem(LS_KEY,k); }catch(e){}
+    $("savedMsg").classList.add("show");
+    setTimeout(function(){ showKeySaved(); loadModels(); },500);
+  });
+  $("editKeyBtn").addEventListener("click",function(){
+    $("keyForm").style.display="block";
+    $("editKeyBtn").style.display="none";
+    $("apiKey").value=localStorage.getItem(LS_KEY)||"";
+    $("apiKey").type="text";
+  });
+  $("modelSel").addEventListener("change",function(){
+    try{ localStorage.setItem(LS_MODEL,$("modelSel").value); }catch(e){}
+  });
+  $("reloadModels").addEventListener("click",loadModels);
+  function getKey(){ return (localStorage.getItem(LS_KEY)||$("apiKey").value||"").trim(); }
+
+  /* ---------- TẢI MODEL FREE CÓ ĐỌC ẢNH ---------- */
+  function loadModels(){
+    $("modelHint").textContent="Đang tải danh sách model free…";
+    fetch(MODELS_URL)
+      .then(function(r){return r.json();})
+      .then(function(j){
+        var list=(j.data||[]).filter(function(m){
+          var p=m.pricing||{};
+          var free=(parseFloat(p.prompt||"0")===0 && parseFloat(p.completion||"0")===0);
+          var mod=(m.architecture&&m.architecture.input_modalities)||[];
+          var vision=mod.indexOf("image")>=0;
+          return free && vision;
+        });
+        // ưu tiên các dòng đọc chữ tốt
+        var pref=["gemini","gemma","qwen","llama","pixtral","mistral","intern","nemotron"];
+        list.sort(function(a,b){
+          function score(id){id=id.toLowerCase();for(var i=0;i<pref.length;i++){if(id.indexOf(pref[i])>=0)return i;}return 99;}
+          var d=score(a.id)-score(b.id); return d!==0?d:a.id.localeCompare(b.id);
+        });
+        var sel=$("modelSel");
+        if(!list.length){
+          sel.innerHTML='<option value="">Không tìm thấy model free đọc ảnh</option>';
+          $("modelHint").textContent="Chưa lấy được model free. Bấm ↻ thử lại, hoặc kiểm tra key.";
+          return;
+        }
+        var saved=localStorage.getItem(LS_MODEL);
+        sel.innerHTML="";
+        list.forEach(function(m){
+          var o=document.createElement("option");
+          o.value=m.id; o.textContent=m.name||m.id;
+          sel.appendChild(o);
+        });
+        if(saved && list.some(function(m){return m.id===saved;})) sel.value=saved;
+        else { try{localStorage.setItem(LS_MODEL,sel.value);}catch(e){} }
+        $("modelHint").textContent="Có "+list.length+" model free đọc ảnh. Nếu 1 model lỗi/bận, đổi sang model khác trong danh sách.";
+      })
+      .catch(function(){
+        $("modelHint").textContent="Không tải được danh sách model (mạng?). Bấm ↻ để thử lại.";
+      });
+  }
+
+  /* ---------- STATUS ---------- */
+  function status(html,type){ var s=$("status"); s.className="status show "+(type||""); s.innerHTML=html; }
+  function clearStatus(){ $("status").className="status"; }
+
+  /* ---------- ẢNH ---------- */
+  var drop=$("drop");
+  drop.addEventListener("click",function(){ $("file").click(); });
+  drop.addEventListener("keydown",function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); $("file").click(); }});
+  $("file").addEventListener("change",function(e){ if(e.target.files[0]) handleImage(e.target.files[0]); });
+  ["dragenter","dragover"].forEach(function(ev){ drop.addEventListener(ev,function(e){ e.preventDefault(); drop.classList.add("over"); }); });
+  ["dragleave","drop"].forEach(function(ev){ drop.addEventListener(ev,function(e){ e.preventDefault(); drop.classList.remove("over"); }); });
+  drop.addEventListener("drop",function(e){ var f=e.dataTransfer.files[0]; if(f&&f.type.indexOf("image")===0) handleImage(f); });
+  window.addEventListener("paste",function(e){
+    var items=e.clipboardData&&e.clipboardData.items; if(!items) return;
+    for(var i=0;i<items.length;i++){ if(items[i].type.indexOf("image")===0){ handleImage(items[i].getAsFile()); break; } }
+  });
+
+  function handleImage(file){
+    if(!getKey()){ status("⚠️ Bạn chưa nhập OpenRouter API key ở phần Cài đặt.","err"); $("apiKey").focus(); return; }
+    var model=$("modelSel").value;
+    if(!model){ status("⚠️ Chưa chọn được model. Bấm ↻ Tải model free.","err"); return; }
+    var reader=new FileReader();
+    reader.onload=function(){
+      var dataUrl=reader.result;
+      $("preview").innerHTML='<img src="'+dataUrl+'" alt="ảnh đã bỏ vào">';
+      callEngine(dataUrl,model);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /* ---------- GỌI OPENROUTER ---------- */
+  function callEngine(dataUrl,model){
+    status('<span class="spin"></span> Đang gửi ảnh cho AI đọc số… ('+model+')',"load");
+    $("resultCard").classList.add("hidden");
+
+    var prompt=
+      "Đọc bảng số trong ảnh. Mỗi dòng trong ảnh là một hàng; trên mỗi hàng các số ngăn cách bởi dấu gạch, "+
+      "khoảng trắng hoặc dấu phẩy. Trả về DUY NHẤT một JSON, không kèm giải thích, không markdown, dạng: "+
+      '{"rows": [[8,32,100],[10,72,120]]}. '+
+      "Mỗi mảng con là một hàng, các số theo đúng thứ tự cột từ TRÁI sang PHẢI. Ô trống dùng 0. "+
+      "Giữ nguyên số hàng và số cột như trong ảnh.";
+
+    var body={
+      model:model,
+      temperature:0,
+      messages:[{role:"user",content:[
+        {type:"text",text:prompt},
+        {type:"image_url",image_url:{url:dataUrl}}
+      ]}]
+    };
+
+    fetch(API,{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization":"Bearer "+getKey(),
+        "X-Title":"Tinh tong cot"
+      },
+      body:JSON.stringify(body)
+    })
+    .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,status:r.status,j:j}; }); })
+    .then(function(res){
+      if(!res.ok){
+        var msg=(res.j&&res.j.error&&(res.j.error.message||res.j.error))||("Lỗi HTTP "+res.status);
+        if(typeof msg==="object") msg=JSON.stringify(msg);
+        if(res.status===401) msg="API key không hợp lệ. Kiểm tra lại key OpenRouter ở phần Cài đặt.";
+        if(res.status===402) msg="Hết lượt free hoặc cần nạp credit. Thử lại sau hoặc đổi model.";
+        if(res.status===429) msg="Đang bị giới hạn tốc độ (quá nhiều lượt). Chờ chút rồi thử lại, hoặc đổi model.";
+        throw new Error(msg);
+      }
+      var txt="";
+      try{ txt=res.j.choices[0].message.content; if(Array.isArray(txt)){ txt=txt.map(function(p){return p.text||"";}).join(""); } }
+      catch(e){ throw new Error("Model không trả về nội dung đọc được. Thử model khác hoặc chụp ảnh rõ hơn."); }
+      var rows=extractRows(txt);
+      if(!rows||!rows.length) throw new Error("Không đọc được số nào từ ảnh. Thử model khác trong danh sách hoặc chụp rõ hơn.");
+      buildTable(rows);
+      clearStatus();
+    })
+    .catch(function(err){ status("❌ "+err.message,"err"); });
+  }
+
+  function extractRows(txt){
+    if(!txt) return null;
+    txt=String(txt).replace(/```json/gi,"").replace(/```/g,"").trim();
+    var obj=null;
+    // thử parse thẳng
+    try{ obj=JSON.parse(txt); }catch(e){}
+    // nếu chưa được, cắt từ { đầu tiên đến } cuối
+    if(!obj){
+      var a=txt.indexOf("{"), b=txt.lastIndexOf("}");
+      if(a>=0&&b>a){ try{ obj=JSON.parse(txt.slice(a,b+1)); }catch(e){} }
+    }
+    // hoặc dạng mảng thuần [[...]]
+    if(!obj){
+      var c=txt.indexOf("["), d=txt.lastIndexOf("]");
+      if(c>=0&&d>c){ try{ obj=JSON.parse(txt.slice(c,d+1)); }catch(e){} }
+    }
+    if(!obj) return null;
+    var rows=obj.rows||obj;
+    if(!Array.isArray(rows)) return null;
+    // đảm bảo mỗi hàng là mảng số
+    rows=rows.map(function(r){
+      if(!Array.isArray(r)) r=[r];
+      return r.map(function(x){ var n=(typeof x==="number")?x:parseFloat(String(x).replace(/[^0-9.\-]/g,"")); return isFinite(n)?n:0; });
+    }).filter(function(r){ return r.length>0; });
+    return rows;
+  }
+
+  /* ---------- BẢNG ---------- */
+  function buildTable(rows){
+    colCount=0; rows.forEach(function(r){ if(r.length>colCount) colCount=r.length; });
+    data=rows.map(function(r){ var out=[]; for(var c=0;c<colCount;c++){ out.push(isFinite(r[c])?r[c]:0); } return out; });
+    if(colNames.length!==colCount){
+      colNames=[]; colOn=[];
+      for(var c=0;c<colCount;c++){ colNames.push("Cột "+(c+1)); colOn.push(true); }
+    }
+    render();
+    $("resultCard").classList.remove("hidden");
+    $("resultCard").scrollIntoView({behavior:"smooth",block:"start"});
+  }
+
+  function render(){
+    var tbl=$("tbl"), html="", c, r;
+    html+="<tr><th></th>";
+    for(c=0;c<colCount;c++){
+      html+='<th class="'+(colOn[c]?"":"off-col")+'"><label><input type="checkbox" data-col="'+c+'" class="colchk" '+(colOn[c]?"checked":"")+'>'+
+            '<input class="colname" data-name="'+c+'" value="'+esc(colNames[c])+'"></label></th>';
+    }
+    html+="</tr>";
+    for(r=0;r<data.length;r++){
+      html+='<tr><td class="rownum">'+(r+1)+'</td>';
+      for(c=0;c<colCount;c++){
+        html+='<td class="'+(colOn[c]?"":"off-col")+'"><input class="cell" data-r="'+r+'" data-c="'+c+'" value="'+data[r][c]+'" inputmode="numeric"></td>';
+      }
+      html+="</tr>";
+    }
+    html+='<tr class="total-row"><td class="lbl">TỔNG</td>';
+    for(c=0;c<colCount;c++){ html+='<td class="'+(colOn[c]?"":"off-col")+'" id="tot'+c+'">'+fmt(colTotalNum(c))+'</td>'; }
+    html+="</tr>";
+    tbl.innerHTML=html;
+
+    Array.prototype.forEach.call(tbl.querySelectorAll(".cell"),function(inp){
+      inp.addEventListener("input",function(){
+        var rr=+inp.dataset.r, cc=+inp.dataset.c;
+        var v=parseFloat(inp.value.replace(/[^0-9.\-]/g,""));
+        data[rr][cc]=isFinite(v)?v:0;
+        $("tot"+cc).textContent=fmt(colTotalNum(cc));
+        renderSummary();
+      });
+    });
+    Array.prototype.forEach.call(tbl.querySelectorAll(".colchk"),function(chk){
+      chk.addEventListener("change",function(){ colOn[+chk.dataset.col]=chk.checked; render(); });
+    });
+    Array.prototype.forEach.call(tbl.querySelectorAll(".colname"),function(nm){
+      nm.addEventListener("input",function(){ colNames[+nm.dataset.name]=nm.value; renderSummary(); });
+    });
+    renderSummary();
+  }
+
+  function colTotalNum(c){ var s=0; for(var r=0;r<data.length;r++){ s+=data[r][c]||0; } return s; }
+
+  function renderSummary(){
+    var html="", grand=0, anyOn=false;
+    for(var c=0;c<colCount;c++){
+      var t=colTotalNum(c);
+      html+='<div class="line"><span>'+esc(colNames[c])+(colOn[c]?"":' <span class="muted">(ẩn)</span>')+'</span><b>'+fmt(t)+'</b></div>';
+      if(colOn[c]){ grand+=t; anyOn=true; }
+    }
+    html+='<div class="line grand"><span>Tổng gộp các cột đã chọn</span><span>'+fmt(grand)+'</span></div>';
+    if(!anyOn) html+='<div class="hint">Chưa chọn cột nào để cộng gộp — tick vào đầu cột.</div>';
+    $("summary").innerHTML=html;
+  }
+
+  /* ---------- NÚT ---------- */
+  $("allBtn").addEventListener("click",function(){
+    var allOn=colOn.every(function(x){return x;});
+    for(var c=0;c<colCount;c++) colOn[c]=!allOn;
+    render();
+  });
+  $("copyBtn").addEventListener("click",function(){
+    var lines=[], c, grand=0;
+    for(c=0;c<colCount;c++){ lines.push(colNames[c]+(colOn[c]?"":" (ẩn)")+": "+fmt(colTotalNum(c))); }
+    for(c=0;c<colCount;c++){ if(colOn[c]) grand+=colTotalNum(c); }
+    lines.push("Tổng gộp các cột đã chọn: "+fmt(grand));
+    var txt=lines.join("\n");
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(function(){ flash($("copyBtn"),"✓ Đã chép"); }); }
+    else { var ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy");}catch(e){} document.body.removeChild(ta); flash($("copyBtn"),"✓ Đã chép"); }
+  });
+  function flash(btn,txt){ var o=btn.textContent; btn.textContent=txt; setTimeout(function(){btn.textContent=o;},1200); }
+
+  /* ---------- HELPERS ---------- */
+  function fmt(n){ if(Math.round(n)===n) return n.toLocaleString("vi-VN"); return n.toLocaleString("vi-VN",{maximumFractionDigits:2}); }
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+  loadKey();
+})();
+</script>
+</body>
+</html>
